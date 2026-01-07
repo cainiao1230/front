@@ -212,16 +212,13 @@ const fetchElderlyList = async () => {
     }
 
     const res = await getElderlyList(params)
-    if (res.code === 200) {
-      const data = res.data || {}
-      tableData.value = data.items || data.list || []
-      total.value = data.total || tableData.value.length || 0
-    } else {
-      ElMessage.error(res.message || '获取失败')
-    }
+    // 兼容后端 code 包装和直接数据
+    const data = res?.data ?? res ?? {}
+    tableData.value = data.items || data.list || []
+    total.value = data.total || tableData.value.length || 0
   } catch (error) {
     console.error('请求失败:', error)
-    ElMessage.error('网络错误，请稍后重试')
+    ElMessage.error('获取失败')
   }
   finally {
     loading.value = false
@@ -261,7 +258,8 @@ const handlePageSizeChange = (pageSize) => {
 const userInfo = ref({})
 // 初始化用户信息
 const initUserInfo = () => {
-  userInfo.value = JSON.parse(localStorage.getItem('user_info') || '{}')
+  // 统一使用登录时存储的 userInfo key
+  userInfo.value = JSON.parse(localStorage.getItem('userInfo') || '{}')
 }
 // 初始化加载
 onMounted(() => {

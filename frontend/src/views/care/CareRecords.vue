@@ -286,6 +286,15 @@ const loadRecords = async () => {
       page_size: pagination.page_size
     }
     
+    // 护理记录查询需要 elderly_id 参数，若未选择则跳过
+    if (!params.elderly_id) {
+      ElMessage.warning('请先选择老人')
+      tableData.value = []
+      total.value = 0
+      loading.value = false
+      return
+    }
+    
     if (dateRange.value && dateRange.value.length === 2) {
       params.start_date = dateRange.value[0]
       params.end_date = dateRange.value[1]

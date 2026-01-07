@@ -155,7 +155,8 @@ const handleSearch = async () => {
 
   try {
     const response = await searchElderly(keyword.value.trim())
-    results.value = response.data || []
+    const data = response?.data ?? response ?? []
+    results.value = data.items || data.list || data || []
     
     if (results.value.length === 0) {
       ElMessage.info('未找到相关老人信息')

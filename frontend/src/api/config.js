@@ -1,6 +1,6 @@
 // 配置是否使用 Mock 数据
 // 开发阶段设置为 true，后端接口就绪后设置为 false
-export const USE_MOCK = true
+export const USE_MOCK = false
 
 // Mock 数据延迟时间（毫秒）- 模拟真实网络请求延迟
 export const MOCK_DELAY = 300

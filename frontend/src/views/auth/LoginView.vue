@@ -65,7 +65,8 @@ const handleLogin = async () => {
       password: form.value.password
     })
     
-    const { access_token, user } = response.data
+    const payload = response?.data ?? response
+    const { access_token, user } = payload
 
     // ✅ 保存 token 和用户信息
     localStorage.setItem('access_token', access_token)

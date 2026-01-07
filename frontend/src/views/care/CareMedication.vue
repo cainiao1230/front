@@ -13,7 +13,7 @@
             <el-option v-for="e in elderlyList" :key="e.id" :label="e.name" :value="e.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="用药时间">
+        <el-form-item label="用药期间">
           <el-date-picker
             v-model="searchForm.dateRange"
             type="daterange"
@@ -34,22 +34,26 @@
         @change="loadData"
       >
         <el-table-column prop="elderly_name" label="老人姓名" width="120" />
-        <el-table-column prop="medicine_name" label="药品名称" width="150" />
+        <el-table-column prop="medication_name" label="药品名称" width="150" />
         <el-table-column prop="dosage" label="剂量" width="120" />
         <el-table-column prop="frequency" label="频率" width="150" />
-        <el-table-column prop="medication_time" label="用药时间" width="180" />
-        <el-table-column label="是否已服用" width="120">
+        <el-table-column label="用药期间" width="200">
           <template #default="{ row }">
-            <el-tag :type="row.taken ? 'success' : 'warning'" size="small">
-              {{ row.taken ? '已服用' : '未服用' }}
+            {{ row.start_date || '—' }} 至 {{ row.end_date || '长期' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getStatusTagType(row.status)" size="small">
+              {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="administered_by" label="给药人" width="120" />
-        <el-table-column prop="notes" label="备注" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="prescribed_by" label="开具医生" width="120" />
+        <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="!row.taken" type="success" size="small" link @click="markAsTaken(row)">
+            <el-button v-if="row.status !== 'taken'" type="success" size="small" link @click="markAsTaken(row)">
               标记已服用
             </el-button>
             <el-button size="small" link @click="viewDetail(row)">详情</el-button>
@@ -89,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getMedicationRecords, markMedicationTaken, getElderlyList } from '@/api'
@@ -115,6 +119,20 @@ const upcomingReminders = ref([
   }
 ])
 
+const fetchMedications = (params) => {
+  const payload = { ...params }
+  if (!payload.elderly_id) {
+    ElMessage.warning('请先选择老人')
+    return Promise.resolve({ data: { items: [], total: 0 } })
+  }
+  if (payload.dateRange?.length === 2) {
+    payload.start_date = payload.dateRange[0]
+    payload.end_date = payload.dateRange[1]
+  }
+  delete payload.dateRange
+  return getMedicationRecords(payload)
+}
+
 const {
   loading,
   tableData,
@@ -124,7 +142,15 @@ const {
   loadData,
   handleSearch,
   handleReset
-} = useTable(getMedicationRecords)
+} = useTable(fetchMedications, { immediate: false })
+
+// 初始化搜索表单
+const initSearchForm = () => {
+  Object.assign(searchForm, {
+    elderly_id: null,
+    dateRange: null
+  })
+}
 
 const loadElderlyList = async () => {
   try {
@@ -134,6 +160,10 @@ const loadElderlyList = async () => {
     console.error('加载老人列表失败')
   }
 }
+
+onMounted(() => {
+  initSearchForm()
+})
 
 const getReminderType = (reminder) => {
   const now = new Date()
@@ -166,6 +196,16 @@ const viewDetail = (record) => {
 
 const showAddDialog = () => {
   ElMessage.info('添加功能开发中')
+}
+
+const getStatusText = (status) => {
+  const map = { active: '进行中', taken: '已服用', completed: '已结束' }
+  return map[status] || '未知'
+}
+
+const getStatusTagType = (status) => {
+  const map = { active: 'info', taken: 'success', completed: 'default' }
+  return map[status] || 'info'
 }
 
 loadElderlyList()

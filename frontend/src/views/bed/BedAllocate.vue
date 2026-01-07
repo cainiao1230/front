@@ -66,9 +66,10 @@
                   :key="bed.id"
                   class="bed-card"
                   :class="{
-                    'available': bed.status === 'available',
+                    'available': isBedFree(bed),
                     'occupied': bed.status === 'occupied',
                     'maintenance': bed.status === 'maintenance',
+                    'locked': bed.status === 'locked',
                     'selected': selectedBed?.id === bed.id
                   }"
                   @click="selectBed(bed)"
@@ -94,6 +95,7 @@
             <span><span class="legend-dot available"></span> 空闲</span>
             <span><span class="legend-dot occupied"></span> 已占用</span>
             <span><span class="legend-dot maintenance"></span> 维护中</span>
+            <span><span class="legend-dot locked"></span> 锁定</span>
             <span><span class="legend-dot selected"></span> 已选择</span>
           </div>
         </div>
@@ -231,8 +233,8 @@ const loadElderlyList = async () => {
   elderlyLoading.value = true
   try {
     const response = await getElderlyList({ status: 'in', page: 1, page_size: 100 })
-    // 过滤出未分配床位的老人
-    elderlyList.value = (response.data.items || []).filter(e => !e.bed_id)
+    const data = response?.data ?? response ?? {}
+    elderlyList.value = (data.items || []).filter(e => !e.bed_id)
     filteredElderlyList.value = elderlyList.value
   } catch (error) {
     ElMessage.error('加载老人列表失败')
@@ -261,7 +263,8 @@ const handleElderlySelect = (row) => {
 const loadBedList = async () => {
   try {
     const response = await getBedList({ page: 1, page_size: 1000 })
-    bedList.value = response.data.items || []
+    const data = response?.data ?? response ?? {}
+    bedList.value = data.items || []
   } catch (error) {
     ElMessage.error('加载床位列表失败')
   }
@@ -272,9 +275,11 @@ const getBedsByFloor = (floor) => {
   return bedList.value.filter(bed => bed.floor === floor)
 }
 
+const isBedFree = (bed) => bed.status === 'free' || bed.status === 'available'
+
 // 选择床位
 const selectBed = (bed) => {
-  if (bed.status !== 'available') {
+  if (!isBedFree(bed)) {
     ElMessage.warning('该床位不可用')
     return
   }
@@ -298,12 +303,24 @@ const getBedTypeText = (type) => {
 }
 
 const getStatusText = (status) => {
-  const map = { 'available': '空闲', 'occupied': '已占用', 'maintenance': '维护中' }
+  const map = {
+    free: '空闲',
+    available: '空闲',
+    occupied: '已占用',
+    maintenance: '维护中',
+    locked: '锁定'
+  }
   return map[status] || status
 }
 
 const getStatusColor = (status) => {
-  const map = { 'available': 'success', 'occupied': 'warning', 'maintenance': 'info' }
+  const map = {
+    free: 'success',
+    available: 'success',
+    occupied: 'warning',
+    maintenance: 'info',
+    locked: 'danger'
+  }
   return map[status] || ''
 }
 
@@ -328,6 +345,15 @@ const nextStep = () => {
 
 // 确认分配
 const handleAllocate = async () => {
+  if (selectedElderly.value?.status && selectedElderly.value.status !== 'in') {
+    ElMessage.error('仅在院老人可分配床位')
+    return
+  }
+  if (!isBedFree(selectedBed.value)) {
+    ElMessage.error('请选择空闲床位')
+    return
+  }
+
   allocating.value = true
   try {
     await allocateBedApi({
@@ -420,6 +446,13 @@ onMounted(() => {
   opacity: 0.6;
 }
 
+.bed-card.locked {
+  background-color: #fff5f5;
+  border-color: #f56c6c;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .bed-card.selected {
   border-color: #409eff;
   background-color: #ecf5ff;
@@ -485,6 +518,10 @@ onMounted(() => {
 
 .legend-dot.maintenance {
   background-color: #909399;
+}
+
+.legend-dot.locked {
+  background-color: #f56c6c;
 }
 
 .legend-dot.selected {

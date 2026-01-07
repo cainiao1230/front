@@ -118,8 +118,9 @@ const loadMessages = async () => {
       page_size: pagination.page_size.value
     }
     const response = await getMessages(params)
-    messages.value = response.data.items || []
-    total.value = response.data.total || 0
+    const payload = response?.data ?? response ?? {}
+    messages.value = payload.items || []
+    total.value = payload.total || 0
   } catch (error) {
     ElMessage.error('加载消息失败')
   } finally {
@@ -130,7 +131,8 @@ const loadMessages = async () => {
 const loadUnreadCount = async () => {
   try {
     const response = await getUnreadCount()
-    unreadCount.value = response.data.count || 0
+    const payload = response?.data ?? response ?? {}
+    unreadCount.value = (payload.unreadCount ?? payload.count ?? 0)
   } catch (error) {
     console.error('获取未读数量失败')
   }

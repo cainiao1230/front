@@ -48,7 +48,8 @@ export function useTable(fetchFn, options = {}) {
       }
       
       const response = await fetchFn(params)
-      const data = response.data || {}
+      // 兼容后端直接返回数据或包裹在 data 字段两种格式
+      const data = response?.data ?? response ?? {}
       
       tableData.value = data.items || []
       total.value = data.total || 0

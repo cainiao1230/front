@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getCareTasks, updateTaskStatus, getElderlyList } from '@/api'
@@ -113,7 +113,17 @@ const {
   loadData,
   handleSearch,
   handleReset
-} = useTable(getCareTasks)
+} = useTable(getCareTasks, { immediate: false })
+
+// 初始化搜索表单
+const initSearchForm = () => {
+  Object.assign(searchForm, {
+    elderly_id: null,
+    status: null,
+    assigned_to: null,
+    priority: null
+  })
+}
 
 // 加载老人列表
 const loadElderlyList = async () => {
@@ -124,6 +134,11 @@ const loadElderlyList = async () => {
     console.error('加载老人列表失败')
   }
 }
+
+onMounted(() => {
+  initSearchForm()
+  loadElderlyList()
+})
 
 // 选择改变
 const handleSelectionChange = (selection) => {

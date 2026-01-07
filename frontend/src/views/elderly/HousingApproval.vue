@@ -57,6 +57,18 @@
         <el-table-column label="申请时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.applied_at || row.created_at) }}</template>
         </el-table-column>
+        <el-table-column label="审批信息" width="220">
+          <template #default="{ row }">
+            <div class="approval-meta">
+              <span v-if="row.approved_at" class="meta-item">已通过：{{ formatDateTime(row.approved_at) }}（{{ row.approved_by || '—' }}）</span>
+              <span v-else-if="row.rejected_at" class="meta-item danger">
+                已驳回：{{ formatDateTime(row.rejected_at) }}
+                <span v-if="row.rejection_reason">，原因：{{ row.rejection_reason }}</span>
+              </span>
+              <span v-else class="meta-item">待处理</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="备注">
           <template #default="{ row }">{{ row.medical_history || '—' }}</template>
         </el-table-column>
@@ -187,5 +199,17 @@ const formatDateTime = (val) => {
 .contact-phone {
   color: #606266;
   font-size: 12px;
+}
+
+.approval-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #606266;
+  font-size: 12px;
+}
+
+.approval-meta .meta-item.danger {
+  color: #f56c6c;
 }
 </style>

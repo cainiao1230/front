@@ -108,8 +108,9 @@ const loadNotices = async () => {
       page_size: pagination.page_size.value
     }
     const response = await getNotices(params)
-    notices.value = response.data.items || []
-    total.value = response.data.total || 0
+    const data = response?.data ?? response ?? {}
+    notices.value = data.items || []
+    total.value = data.total || 0
   } catch (error) {
     ElMessage.error('加载公告失败')
   } finally {

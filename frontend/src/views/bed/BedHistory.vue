@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Position, Switch, Refresh } from '@element-plus/icons-vue'
 import { getBedHistory, getElderlyList } from '@/api'
 import { useTable } from '@/composables/useTable'
@@ -99,7 +99,14 @@ const {
   loadData,
   handleSearch,
   handleReset
-} = useTable(getBedHistory)
+} = useTable(getBedHistory, { immediate: false })
+
+// 初始化搜索表单
+const initSearchForm = () => {
+  Object.assign(searchForm, {
+    elderly_id: null
+  })
+}
 
 const loadElderlyList = async () => {
   try {
@@ -109,6 +116,11 @@ const loadElderlyList = async () => {
     console.error('加载老人列表失败')
   }
 }
+
+onMounted(() => {
+  initSearchForm()
+  loadElderlyList()
+})
 
 const getTimelineType = (type) => {
   const map = {
