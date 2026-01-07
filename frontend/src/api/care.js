@@ -159,3 +159,18 @@ export const updateMedicationRecord = (id, data) => {
   
   return request.put(`/api/care/medications/${id}`, data)
 }
+
+// 标记用药已服用
+export const markMedicationTaken = (id) => {
+  if (USE_MOCK) {
+    const index = mockMedicationRecords.findIndex(item => item.id === id)
+    if (index !== -1) {
+      mockMedicationRecords[index].status = 'taken'
+      mockMedicationRecords[index].taken_at = new Date().toISOString()
+      return mockRequest(mockMedicationRecords[index])
+    }
+    return mockRequest(null)
+  }
+  
+  return request.patch(`/api/care/medications/${id}/taken`)
+}

@@ -36,6 +36,11 @@ const routes = [
         meta: { requiresAuth: true, title: '快速查看老人' }
       },
       { 
+        path: 'elderlies/approvals', 
+        component: () => import('@/views/elderly/HousingApproval.vue'),
+        meta: { requiresAuth: true, title: '住房申请审批' }
+      },
+      { 
         path: 'elderlies/add', 
         component: () => import('@/views/elderly/ElderlyAdd.vue'),
         meta: { requiresAuth: true, title: '新增老人' }

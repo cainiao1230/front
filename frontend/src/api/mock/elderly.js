@@ -84,6 +84,42 @@ export const mockElderlyList = [
     medical_history: '高血压、糖尿病',
     created_at: '2024-05-12T10:00:00',
     updated_at: '2024-05-12T10:00:00'
+  },
+  {
+    id: 6,
+    name: '陈芳',
+    gender: 'female',
+    birthday: '1955-12-02',
+    phone: '13800138006',
+    id_number: '110101195512021234',
+    emergency_contact_name: '陈伟',
+    emergency_contact_phone: '13900139006',
+    care_level: 'semi_care',
+    bed_id: null,
+    status: 'pending',
+    admission_date: null,
+    medical_history: '高血压',
+    applied_at: '2024-11-01T09:30:00',
+    created_at: '2024-11-01T09:30:00',
+    updated_at: '2024-11-01T09:30:00'
+  },
+  {
+    id: 7,
+    name: '刘强',
+    gender: 'male',
+    birthday: '1953-04-16',
+    phone: '13800138007',
+    id_number: '110101195304161234',
+    emergency_contact_name: '刘洋',
+    emergency_contact_phone: '13900139007',
+    care_level: 'full_care',
+    bed_id: null,
+    status: 'pending',
+    admission_date: null,
+    medical_history: '脑梗后遗症',
+    applied_at: '2024-11-05T15:10:00',
+    created_at: '2024-11-05T15:10:00',
+    updated_at: '2024-11-05T15:10:00'
   }
 ]
 

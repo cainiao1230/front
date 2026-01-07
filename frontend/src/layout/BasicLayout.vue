@@ -76,7 +76,7 @@
             <template #title>今日护理安排</template>
           </el-menu-item>
           
-          <el-menu-item v-if="canAccess('elderly_add')" index="/home/elderlies/add">
+          <el-menu-item v-if="canAccess('elderly_add')" index="/home/elderlies/approvals">
             <el-icon><CirclePlus /></el-icon>
             <template #title>住房申请审批</template>
           </el-menu-item>
@@ -535,7 +535,7 @@ const goToMessages = () => {
 }
 
 const goToQuickAdd = () => {
-  router.push('/elderlies/add')
+  router.push('/home/elderlies/add')
 }
 
 const handleUserCommand = (command) => {

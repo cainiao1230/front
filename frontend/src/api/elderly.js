@@ -43,7 +43,8 @@ export const createElderly = (data) => {
     const newElderly = {
       id: mockElderlyList.length + 1,
       ...data,
-      status: 'in',
+      status: 'pending',
+      applied_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -99,4 +100,46 @@ export const searchElderly = (keyword) => {
   }
   
   return request.get('/api/elderly/search', { params: { keyword } })
+}
+
+// 审批住房申请 - 通过
+export const approveHousingApplication = (id, data = {}) => {
+  if (USE_MOCK) {
+    const index = mockElderlyList.findIndex(item => item.id === id)
+    if (index !== -1) {
+      mockElderlyList[index] = {
+        ...mockElderlyList[index],
+        ...data,
+        status: 'in',
+        admission_date: data.admission_date || mockElderlyList[index].admission_date || new Date().toISOString().split('T')[0],
+        approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      return mockRequest(mockElderlyList[index])
+    }
+    return mockRequest(null)
+  }
+  
+  return request.patch(`/api/elderly/${id}/approve`, data)
+}
+
+// 审批住房申请 - 驳回
+export const rejectHousingApplication = (id, reason) => {
+  const payload = { reason }
+  if (USE_MOCK) {
+    const index = mockElderlyList.findIndex(item => item.id === id)
+    if (index !== -1) {
+      mockElderlyList[index] = {
+        ...mockElderlyList[index],
+        status: 'out',
+        rejection_reason: reason,
+        rejected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      return mockRequest(mockElderlyList[index])
+    }
+    return mockRequest(null)
+  }
+  
+  return request.patch(`/api/elderly/${id}/reject`, payload)
 }

@@ -82,7 +82,7 @@
       background
       layout="total, prev, pager, next, jumper"
       :current-page="searchForm.page"
-      :page-size="searchForm.per_page"
+      :page-size="searchForm.page_size"
       :total="total"
       @current-change="handlePageChange"
       @size-change="handlePageSizeChange"
@@ -132,7 +132,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { getElderlyList, updateElderly, deleteElderly } from '@/api'
 // 编辑弹窗状态
 const editDialogVisible = ref(false)
 
@@ -160,8 +161,7 @@ const handleEdit = (row) => {
 const handleEditSubmit = async () => {
   submitLoading.value = true
   try {
-    // 👇 替换为你的实际 PUT 接口路径
-    await axios.put(`/elderly_put/${editForm.value.id}`, editForm.value)
+    await updateElderly(editForm.value.id, editForm.value)
     editDialogVisible.value = false
     fetchElderlyList() // 重新加载列表（确保你已有这个方法）
   } catch (err) {
@@ -170,7 +170,6 @@ const handleEditSubmit = async () => {
     submitLoading.value = false
   }
 }
-import { ElMessageBox,ElMessage} from 'element-plus'
 // 删除
 const handleDelete = (row) => {
   ElMessageBox.confirm(`确定要删除老人${row.name}吗？`, '提示', {
@@ -179,8 +178,7 @@ const handleDelete = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      // 👇 替换为你的实际 DELETE 接口路径
-      await axios.delete(`/elderly_del/${row.id}`)
+      await deleteElderly(row.id)
       ElMessage.success('删除成功')
       fetchElderlyList() // 重新加载列表
     } catch (err) {
@@ -193,7 +191,7 @@ const loading = ref(true)
 // 搜索表单
 const searchForm = ref({
   page: 1,
-  per_page: 10,
+  page_size: 10,
   name: '',
   care_level: ''
 })
@@ -204,20 +202,22 @@ const total = ref(0)
 
 // 获取老人列表
 const fetchElderlyList = async () => {
+  loading.value = true
   try {
     const params = {
       page: searchForm.value.page,
-      per_page: searchForm.value.per_page,
+      page_size: searchForm.value.page_size,
       name: searchForm.value.name || undefined,
       care_level: searchForm.value.care_level || undefined
     }
 
-    const res = await axios.get('/elderly_list', { params })
-    if (res.data.code === 200) {
-      tableData.value = res.data.data.list || []
-      total.value = res.data.data.total || 0
+    const res = await getElderlyList(params)
+    if (res.code === 200) {
+      const data = res.data || {}
+      tableData.value = data.items || data.list || []
+      total.value = data.total || tableData.value.length || 0
     } else {
-      ElMessage.error(res.data.message || '获取失败')
+      ElMessage.error(res.message || '获取失败')
     }
   } catch (error) {
     console.error('请求失败:', error)
@@ -238,7 +238,7 @@ const handleSearch = () => {
 const handleReset = () => {
   searchForm.value = {
     page: 1,
-    per_page: 10,
+    page_size: 10,
     name: '',
     care_level: ''
   }
@@ -252,7 +252,7 @@ const handlePageChange = (page) => {
 }
 
 const handlePageSizeChange = (pageSize) => {
-  searchForm.value.per_page = pageSize
+  searchForm.value.page_size = pageSize
   fetchElderlyList()
 }
 
