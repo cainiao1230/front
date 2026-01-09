@@ -10,10 +10,17 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   config => {
-    // 从 localStorage 获取 token
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // 登录/刷新/登出接口不携带 Authorization
+    const url = config.url || ''
+    const skipAuthPaths = ['/api/auth/login', '/api/auth/refresh', '/api/auth/logout']
+    const shouldSkipAuth = skipAuthPaths.some(p => url.includes(p))
+
+    if (!shouldSkipAuth) {
+      // 从 localStorage 获取 token（忽略 mock token）
+      const token = localStorage.getItem('access_token')
+      if (token && !String(token).startsWith('mock-jwt-token')) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
     return config
   },
@@ -27,9 +34,9 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   response => {
     const res = response.data
-    // 后端统一返回 { code, message, data }，code=0 表示成功
+    // 后端统一返回 { code, message, data }，成功码可能为 0 或 200
     if (res && Object.prototype.hasOwnProperty.call(res, 'code')) {
-      if (res.code === 0) {
+      if (res.code === 0 || res.code === 200) {
         return res.data ?? res
       }
       console.warn('[API][biz-error]', response.config?.method, response.config?.url, {

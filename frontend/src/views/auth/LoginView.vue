@@ -68,9 +68,21 @@ const handleLogin = async () => {
     const payload = response?.data ?? response
     const { access_token, user } = payload
 
-    // ✅ 保存 token 和用户信息
+    // ✅ 合并 user 和 permissions 到扁平结构
+    const userInfo = {
+      ...user,
+      permissions: payload.permissions || user.permissions || []
+    }
+
+    // 保存 token 和用户信息
     localStorage.setItem('access_token', access_token)
-    localStorage.setItem('userInfo', JSON.stringify(user))
+    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+    
+    console.log('[登录] 后端返回的完整数据:', payload)
+    console.log('[登录] 保存的用户信息:', userInfo)
+    console.log('[登录] 用户名:', userInfo.username || userInfo.name)
+    console.log('[登录] 角色:', userInfo.role)
+    console.log('[登录] 权限数量:', userInfo.permissions?.length || 0)
     
     ElMessage.success('登录成功')
     router.push('/home')  // 登录成功后跳转到主页

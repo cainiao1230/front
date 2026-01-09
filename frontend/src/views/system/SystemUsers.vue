@@ -71,10 +71,9 @@
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-switch
-              v-model="row.status"
-              active-value="active"
-              inactive-value="disabled"
-              @change="handleStatusChange(row)"
+              :model-value="row.status === 'active' || row.status === 1"
+              :disabled="row.role === 'admin'"
+              @change="(val) => handleStatusChange(row, val)"
             />
           </template>
         </el-table-column>
@@ -124,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import { getSystemUsers, createSystemUser, updateSystemUser, deleteSystemUser, batchUpdateUserStatus, batchUpdateUserRole } from '@/api'
@@ -145,10 +144,12 @@ const {
 
 const {
   dialogVisible,
-  isEdit,
-  showAddDialog,
-  showEditDialog
+  dialogMode,
+  openDialog
 } = useDialog()
+
+// 是否编辑模式
+const isEdit = computed(() => dialogMode.value === 'edit')
 
 const formRef = ref(null)
 const selectedUsers = ref([])
@@ -169,14 +170,25 @@ const rules = {
   phone: [phoneValidator]
 }
 
-const handleStatusChange = async (user) => {
+const handleStatusChange = async (user, newValue) => {
+  const newStatus = newValue ? 'active' : 'disabled'
+  const oldStatus = user.status
+  
+  // 管理员账号不允许禁用
+  if (user.role === 'admin' && newStatus === 'disabled') {
+    ElMessage.warning('管理员账号不能被禁用')
+    return
+  }
+  
   try {
-    await updateSystemUser(user.id, { status: user.status })
+    // 先乐观更新UI
+    user.status = newStatus
+    await updateSystemUser(user.id, { status: newStatus })
     ElMessage.success('状态更新成功')
   } catch (error) {
+    // 失败时恢复原状态
+    user.status = oldStatus
     ElMessage.error('操作失败')
-    // 恢复原状态
-    user.status = user.status === 'active' ? 'disabled' : 'active'
   }
 }
 
@@ -271,9 +283,22 @@ const batchDelete = async () => {
   }
 }
 
+// 新增/编辑对话框打开函数（保持与模板接口一致）
+const showAddDialog = () => {
+  userForm.value = {
+    username: '',
+    password: '',
+    real_name: '',
+    role: 'caregiver',
+    phone: '',
+    email: ''
+  }
+  openDialog('add')
+}
+
 const editUser = (user) => {
-  showEditDialog()
   userForm.value = { ...user }
+  openDialog('edit')
 }
 
 const resetPassword = async (user) => {

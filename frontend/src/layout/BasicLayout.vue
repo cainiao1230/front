@@ -46,14 +46,14 @@
         @select="handleMenuSelect"
       >
         <!-- 首页 -->
-        <el-menu-item index="/home">
+        <el-menu-item v-if="hasPerm('page.dashboard')" index="/home">
           <el-icon><House /></el-icon>
           <template #title>首页</template>
         </el-menu-item>
 
         <!-- 老人管理（带子菜单） -->
                 <el-sub-menu 
-          v-if="canAccess('elderly')" 
+                  v-if="hasPerm('page.elderly')" 
           index="elderly"
         >
           <template #title>
@@ -61,12 +61,12 @@
             <span>老人管理</span>
           </template>
           
-          <el-menu-item index="/home/elderlies/list">
+          <el-menu-item v-if="hasPerm('page.elderly.list')" index="/home/elderlies/list">
             <el-icon><List /></el-icon>
             <template #title>老人列表</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/elderlies/search">
+          <el-menu-item v-if="hasPerm('page.elderly.quick')" index="/home/elderlies/search">
             <el-icon><Search /></el-icon>
             <template #title>快速查看老人</template>
           </el-menu-item>
@@ -76,7 +76,7 @@
             <template #title>今日护理安排</template>
           </el-menu-item>
           
-          <el-menu-item v-if="canAccess('elderly_add')" index="/home/elderlies/approvals">
+          <el-menu-item v-if="hasPerm('page.elderly.pending')" index="/home/elderlies/approvals">
             <el-icon><CirclePlus /></el-icon>
             <template #title>住房申请审批</template>
           </el-menu-item>
@@ -84,7 +84,7 @@
 
         <!-- 床位管理（带子菜单） -->
                 <el-sub-menu 
-          v-if="canAccess('bed')" 
+                  v-if="hasPerm('page.bed')" 
           index="bed"
         >
           <template #title>
@@ -92,22 +92,22 @@
             <span>床位管理</span>
           </template>
           
-          <el-menu-item index="/home/beds/floor">
+          <el-menu-item v-if="hasPerm('page.bed')" index="/home/beds/floor">
             <el-icon><DataAnalysis /></el-icon>
             <template #title>各楼层床位使用情况</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/beds/list">
+          <el-menu-item v-if="hasPerm('page.bed.list')" index="/home/beds/list">
             <el-icon><List /></el-icon>
             <template #title>床位列表</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/beds/history">
+          <el-menu-item v-if="hasPerm('page.bed.history')" index="/home/beds/history">
             <el-icon><Histogram /></el-icon>
             <template #title>床位调整记录</template>
           </el-menu-item>
           
-          <el-menu-item v-if="canAccess('bed_manage')" index="/home/beds/allocate">
+          <el-menu-item v-if="hasPerm('page.bed.allocate')" index="/home/beds/allocate">
             <el-icon><Setting /></el-icon>
             <template #title>床位分配</template>
           </el-menu-item>
@@ -115,7 +115,7 @@
 
         <!-- 护理管理（护士/管理员可见） -->
                 <el-sub-menu 
-          v-if="canAccess('care')" 
+                  v-if="hasPerm('page.care') || hasPerm('page.care.tasks') || hasPerm('page.care.records')" 
           index="care"
         >
           <template #title>
@@ -123,24 +123,24 @@
             <span>护理管理</span>
           </template>
           
-          <el-menu-item index="/home/care/tasks">
+          <el-menu-item v-if="hasPerm('page.care.tasks')" index="/home/care/tasks">
             <el-icon><List /></el-icon>
             <template #title>护理任务</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/care/records">
+          <el-menu-item v-if="hasPerm('page.care.records')" index="/home/care/records">
             <el-icon><Notebook /></el-icon>
             <template #title>护理记录</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/care/medication">
+          <el-menu-item v-if="hasPerm('page.medication')" index="/home/care/medication">
             <el-icon><Box /></el-icon>
             <template #title>用药管理</template>
           </el-menu-item>
         </el-sub-menu>
 
         <!-- 我的待办（带徽章） -->
-        <el-menu-item v-if="canAccess('todo')" index="/home/todo">
+        <el-menu-item v-if="hasPerm('page.todo')" index="/home/todo">
           <el-badge 
             :value="todoCount" 
             :max="9" 
@@ -159,7 +159,7 @@
         </el-menu-item>
 
         <!-- 消息中心（带徽章） -->
-        <el-menu-item v-if="canAccess('message')" index="/home/messages">
+        <el-menu-item v-if="hasPerm('page.message')" index="/home/messages">
           <el-badge 
             :value="messageCount" 
             :max="9" 
@@ -178,14 +178,14 @@
         </el-menu-item>
 
         <!-- 公告通知 -->
-        <el-menu-item v-if="canAccess('notice')" index="/home/notices">
+        <el-menu-item v-if="hasPerm('page.notice')" index="/home/notices">
           <el-icon><Bell /></el-icon>
           <template #title>公告通知</template>
         </el-menu-item>
 
         <!-- 系统设置（仅管理员可见） -->
                 <el-sub-menu 
-          v-if="canAccess('system')" 
+                  v-if="hasPerm('page.system') || hasPerm('page.system.users') || hasPerm('page.system.roles')" 
           index="system"
         >
           <template #title>
@@ -193,17 +193,17 @@
             <span>系统设置</span>
           </template>
           
-          <el-menu-item index="/home/system/users">
+          <el-menu-item v-if="hasPerm('page.system.users')" index="/home/system/users">
             <el-icon><UserFilled /></el-icon>
             <template #title>用户管理</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/system/roles">
+          <el-menu-item v-if="hasPerm('page.system.roles')" index="/home/system/roles">
             <el-icon><Lock /></el-icon>
             <template #title>角色权限</template>
           </el-menu-item>
           
-          <el-menu-item index="/home/system/logs">
+          <el-menu-item v-if="hasPerm('page.log')" index="/home/system/logs">
             <el-icon><Document /></el-icon>
             <template #title>操作日志</template>
           </el-menu-item>
@@ -317,6 +317,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { getCurrentUser } from '@/api'
 import {
   // 图标
   HomeFilled,
@@ -348,39 +349,30 @@ import {
 const router = useRouter()
 const route = useRoute()
 
-// 🔐 角色权限控制
+// 🔐 权限控制（基于后端返回的权限 code）
 const userInfo = ref({})
-const userRole = computed(() => {
-  // 支持多种 role 字段名：role, user_role, userRole
-  return userInfo.value.role || userInfo.value.user_role || userInfo.value.userRole || 'guest'
-})
+const allowedCodes = ref(new Set())
 
-// 权限检查函数
-const canAccess = (permission) => {
-  const role = userRole.value.toLowerCase()
-  
-  console.log('🔍 权限检查:', {
-    permission,
-    userRole: role,
-    userInfo: userInfo.value
-  })
-  
-  const permissions = {
-    admin: ['elderly', 'bed', 'care', 'todo', 'message', 'notice', 'system', 'elderly_add', 'bed_manage'],
-    nurse: ['elderly', 'bed', 'care', 'todo', 'message', 'notice'],
-    caregiver: ['elderly', 'care', 'todo', 'message'],
-    family: ['elderly', 'todo', 'message'],
-    guest: []
+const hasPerm = (code) => {
+  if (!code) return true
+  // 检查权限集合
+  if (!allowedCodes.value || allowedCodes.value.size === 0) {
+    // 若没有权限数据，检查是否已加载用户信息
+    // 如果已有用户信息但无权限，说明后端未返回permissions，此时不应放行
+    if (userInfo.value && userInfo.value.id) {
+      return false // 有用户但无权限数据，拒绝
+    }
+    return true // 尚未加载用户信息，暂时放行
   }
-  
-  const hasAccess = permissions[role]?.includes(permission) || false
-  console.log(`   结果: ${hasAccess ? '✅ 允许' : '❌ 拒绝'}`)
-  
-  return hasAccess
+  return allowedCodes.value.has(code)
 }
 
 // 用户角色文本
+const userRole = computed(() => userInfo.value?.role || userInfo.value?.user_role || userInfo.value?.userRole || 'guest')
 const userRoleText = computed(() => {
+  if (userInfo.value?.displayRole || userInfo.value?.roleName) {
+    return userInfo.value.displayRole || userInfo.value.roleName
+  }
   const roleMap = {
     admin: '管理员',
     nurse: '护士',
@@ -388,8 +380,50 @@ const userRoleText = computed(() => {
     family: '家属',
     guest: '访客'
   }
-  return roleMap[userRole.value.toLowerCase()] || '未知角色'
+  return roleMap[(userRole.value || 'guest').toLowerCase()] || '未知角色'
 })
+
+// 初始化用户信息与权限
+onMounted(async () => {
+  try {
+    const userInfoStr = localStorage.getItem('userInfo')
+    userInfo.value = userInfoStr ? JSON.parse(userInfoStr) : {}
+    
+    console.log('[BasicLayout] 加载的用户信息:', userInfo.value)
+    console.log('[BasicLayout] 用户名:', userInfo.value?.username || userInfo.value?.name)
+    console.log('[BasicLayout] 角色:', userInfo.value?.role)
+    console.log('[BasicLayout] 权限:', userInfo.value?.permissions)
+    
+    const codes = (userInfo.value?.permissions || []).map(p => typeof p === 'string' ? p : p.code)
+    allowedCodes.value = new Set(codes)
+    
+    console.log('[BasicLayout] 解析出的权限码:', Array.from(allowedCodes.value))
+    
+    // 若本地无权限数据，尝试拉取最新用户信息
+    if (allowedCodes.value.size === 0) {
+      console.log('[BasicLayout] 本地无权限，尝试调用 /api/auth/me')
+      const me = await getCurrentUser()
+      const _user = me?.data ?? me
+      console.log('[BasicLayout] /api/auth/me 返回:', _user)
+      if (_user) {
+        localStorage.setItem('userInfo', JSON.stringify(_user))
+        userInfo.value = _user
+        const newCodes = (_user.permissions || []).map(p => typeof p === 'string' ? p : p.code)
+        allowedCodes.value = new Set(newCodes)
+        console.log('[BasicLayout] 更新后的权限码:', Array.from(allowedCodes.value))
+      }
+    }
+  } catch (err) {
+    console.error('[BasicLayout] 加载用户信息失败:', err)
+  }
+  
+  // 加载初始数据
+  loadTodoCount()
+  loadMessageCount()
+  
+  // 启动轮询
+  startPolling()
+}) // 闭合 onMounted
 
 // 🔔 待办事项徽章
 const todoCount = ref(0)
@@ -407,7 +441,7 @@ const toggleCollapse = () => {
 }
 
 // 用户信息
-const userName = computed(() => userInfo.value.name || '用户')
+const userName = computed(() => userInfo.value.username || userInfo.value.name || userInfo.value.nickname || '用户')
 const userAvatar = computed(() => userInfo.value.avatar || '')
 const userInitials = computed(() => {
   const name = userName.value
@@ -425,8 +459,7 @@ const activeMenu = computed(() => route.path)
 // 🚀 加载待办数量
 const loadTodoCount = async () => {
   try {
-    const user = getUserInfo()
-    if (!user.id) return
+    if (!userInfo.value?.id) return
     
     // 模拟API调用
     await new Promise(resolve => setTimeout(resolve, 300))
@@ -438,7 +471,7 @@ const loadTodoCount = async () => {
       'U003': 2   // 护工
     }
     
-    todoCount.value = mockCounts[user.id] || 0
+    todoCount.value = mockCounts[userInfo.value.id] || 0
   } catch (error) {
     console.error('加载待办数量失败:', error)
     todoCount.value = 0
@@ -448,8 +481,7 @@ const loadTodoCount = async () => {
 // 加载消息数量
 const loadMessageCount = async () => {
   try {
-    const user = getUserInfo()
-    if (!user.id) return
+    if (!userInfo.value?.id) return
     
     await new Promise(resolve => setTimeout(resolve, 300))
     
@@ -459,7 +491,7 @@ const loadMessageCount = async () => {
       'U003': 0
     }
     
-    messageCount.value = mockCounts[user.id] || 0
+    messageCount.value = mockCounts[userInfo.value.id] || 0
   } catch (error) {
     console.error('加载消息数量失败:', error)
     messageCount.value = 0
@@ -474,26 +506,6 @@ const getUserInfo = () => {
     return JSON.parse(userInfo || '{}')
   } catch {
     return {}
-  }
-}
-
-// 初始化用户信息
-const initUserInfo = () => {
-  userInfo.value = getUserInfo()
-  console.log('🔐 用户信息已加载:', userInfo.value)
-  console.log('👤 用户角色:', userRole.value)
-  console.log('📋 角色(小写):', userRole.value.toLowerCase())
-  console.log('✅ 权限检查结果:', {
-    system: canAccess('system'),
-    bed: canAccess('bed'),
-    care: canAccess('care'),
-    elderly: canAccess('elderly'),
-    todo: canAccess('todo')
-  })
-  
-  // 如果没有用户信息，提示重新登录
-  if (!userInfo.value || !userInfo.value.id) {
-    console.warn('⚠️ 未找到用户信息，请重新登录')
   }
 }
 
@@ -556,6 +568,7 @@ const handleLogout = () => {
   // 清除本地存储
   localStorage.removeItem('access_token')
   localStorage.removeItem('user')
+  localStorage.removeItem('userInfo')
   
   // 停止轮询
   stopPolling()
@@ -563,21 +576,6 @@ const handleLogout = () => {
   // 跳转到登录页
   router.push('/login')
 }
-
-// 生命周期钩子
-onMounted(() => {
-  // 初始化用户信息
-  initUserInfo()
-  
-  // 加载初始数据
-  loadTodoCount()
-  loadMessageCount()
-  
-  // 启动轮询
-  startPolling()
-  
-  
-})
 
 onUnmounted(() => {
   // 停止轮询

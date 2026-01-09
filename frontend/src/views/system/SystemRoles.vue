@@ -42,22 +42,26 @@
 
           <el-empty v-if="!selectedRole" description="请在左侧选择一个角色" />
 
-          <el-tree
-            v-else
-            :data="permissionTree"
-            show-checkbox
-            node-key="id"
-            :default-checked-keys="selectedPermissions"
-            @check-change="handlePermissionChange"
-            ref="treeRef"
-          >
-            <template #default="{ data }">
-              <span class="tree-node">
-                <el-icon><component :is="data.icon" /></el-icon>
-                <span>{{ data.label }}</span>
-              </span>
-            </template>
-          </el-tree>
+                    <el-tree
+                      v-else
+                      :data="permissionTree"
+                      show-checkbox
+                      node-key="id"
+                      :default-checked-keys="selectedPermissions"
+                      ref="treeRef"
+                      :expand-on-click-node="false"
+                      :check-strictly="false"
+                    >
+                      <template #default="{ data }">
+                        <span class="tree-node">
+                          <el-icon><component :is="data.icon" /></el-icon>
+                          <el-tooltip v-if="data.description" :content="data.description" placement="right">
+                            <span>{{ data.label }}</span>
+                          </el-tooltip>
+                          <span v-else>{{ data.label }}</span>
+                        </span>
+                      </template>
+                    </el-tree>
         </PageCard>
       </el-col>
     </el-row>
@@ -67,9 +71,6 @@
       <el-form :model="roleForm" :rules="rules" ref="formRef" label-width="80px">
         <el-form-item label="角色名称" prop="name">
           <el-input v-model="roleForm.name" />
-        </el-form-item>
-        <el-form-item label="角色编码" prop="code">
-          <el-input v-model="roleForm.code" :disabled="isEdit" />
         </el-form-item>
         <el-form-item label="角色描述" prop="description">
           <el-input v-model="roleForm.description" type="textarea" :rows="3" />
@@ -84,10 +85,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Select, User, House, Grid, DataLine, Setting, Document } from '@element-plus/icons-vue'
-import { getSystemRoles, createSystemRole, updateSystemRole, deleteSystemRole, updateRolePermissions } from '@/api'
+import { getSystemRoles, getSystemRoleDetail, createSystemRole, updateSystemRole, deleteSystemRole, updateRolePermissions, getSystemPermissions, getCurrentUser } from '@/api'
 import { useDialog } from '@/composables/useDialog'
 import { required } from '@/utils/validators'
 
@@ -96,66 +97,123 @@ const selectedRole = ref(null)
 const selectedPermissions = ref([])
 const treeRef = ref(null)
 const loading = ref(false)
+const permissions = ref([])
 
-const permissionTree = ref([
-  {
-    id: '1',
-    label: '个人中心',
-    icon: House,
-    children: [
-      { id: '1-1', label: '个人信息', icon: User },
-      { id: '1-2', label: '账户设置', icon: Setting }
-    ]
-  },
-  {
-    id: '2',
-    label: '老人管理',
-    icon: User,
-    children: [
-      { id: '2-1', label: '老人列表', icon: Grid },
-      { id: '2-2', label: '添加老人', icon: Plus },
-      { id: '2-3', label: '老人搜索', icon: DataLine }
-    ]
-  },
-  {
-    id: '3',
-    label: '床位管理',
-    icon: Grid,
-    children: [
-      { id: '3-1', label: '床位列表', icon: Grid },
-      { id: '3-2', label: '床位分配', icon: Plus },
-      { id: '3-3', label: '楼层视图', icon: House },
-      { id: '3-4', label: '历史记录', icon: Document }
-    ]
-  },
-  {
-    id: '4',
-    label: '护理管理',
-    icon: DataLine,
-    children: [
-      { id: '4-1', label: '护理记录', icon: Document },
-      { id: '4-2', label: '护理任务', icon: Grid },
-      { id: '4-3', label: '用药管理', icon: DataLine }
-    ]
-  },
-  {
-    id: '5',
-    label: '系统管理',
-    icon: Setting,
-    children: [
-      { id: '5-1', label: '用户管理', icon: User },
-      { id: '5-2', label: '角色权限', icon: Grid },
-      { id: '5-3', label: '操作日志', icon: Document }
-    ]
+// 将权限列表按 code 点分割构建树（page.module → page.module.subpage）
+const permissionTree = computed(() => {
+  console.log('[角色权限] 生成权限树，permissions.value:', permissions.value)
+  const tree = []
+  const map = {}
+  const parentCodes = new Set()
+  
+  // 定义显示顺序（按导航栏顺序）
+  const orderMap = {
+    'page.dashboard': 1,
+    'page.elderly': 2,
+    'page.bed': 3,
+    'page.care': 4,
+    'page.medication': 5,
+    'page.todo': 6,
+    'page.message': 7,
+    'page.notice': 8,
+    'page.system': 9,
+    'page.log': 10
   }
-])
+  
+  // 第一遍：识别哪些是父节点（有子节点的2段code）
+  permissions.value.forEach(perm => {
+    const code = perm.code || perm || ''
+    const parts = String(code).split('.')
+    if (parts.length === 3) {
+      const parentCode = parts.slice(0, 2).join('.')
+      parentCodes.add(parentCode)
+    }
+  })
+  
+  // 自定义排序：按 orderMap 定义的顺序，未定义的按字母顺序
+  const sorted = [...permissions.value].sort((a, b) => {
+    const codeA = a.code || a || ''
+    const codeB = b.code || b || ''
+    const partsA = String(codeA).split('.')
+    const partsB = String(codeB).split('.')
+    
+    // 提取一级code (page.xxx)
+    const rootA = partsA.slice(0, 2).join('.')
+    const rootB = partsB.slice(0, 2).join('.')
+    
+    const orderA = orderMap[rootA] || 999
+    const orderB = orderMap[rootB] || 999
+    
+    // 先按一级排序
+    if (orderA !== orderB) {
+      return orderA - orderB
+    }
+    // 同一级内按 code 字母顺序
+    return codeA.localeCompare(codeB)
+  })
+  
+  // 第二遍：构建树
+  sorted.forEach(perm => {
+    const code = perm.code || perm || ''
+    const parts = String(code).split('.')
+    
+    if (parts.length === 2) {
+      if (parentCodes.has(code)) {
+        // 这是一个真正的父节点（有子节点）
+        const node = {
+          id: code,
+          code: code,
+          label: perm.name || code,
+          description: perm.description || '',
+          children: []
+        }
+        tree.push(node)
+        map[code] = node
+      } else {
+        // 这是一个没有子节点的叶子节点
+        tree.push({
+          id: code,
+          code: code,
+          label: perm.name || code,
+          description: perm.description || ''
+        })
+      }
+    } else if (parts.length === 3) {
+      // 子节点
+      const parentCode = parts.slice(0, 2).join('.')
+      const parent = map[parentCode]
+      if (parent) {
+        parent.children.push({
+          id: code,
+          code: code,
+          label: perm.name || code,
+          description: perm.description || ''
+        })
+      } else {
+        // 父节点不存在，直接加到根
+        tree.push({
+          id: code,
+          code: code,
+          label: perm.name || code,
+          description: perm.description || ''
+        })
+      }
+    }
+  })
+  
+  console.log('[角色权限] 权限树结构:', tree)
+  console.log('[角色权限] 父节点集合:', Array.from(parentCodes))
+  return tree
+})
 
 const {
   dialogVisible,
-  isEdit,
-  showAddDialog,
-  showEditDialog
+  dialogMode,
+  openDialog
 } = useDialog()
+
+// 是否编辑模式
+const isEdit = computed(() => dialogMode.value === 'edit')
 
 const formRef = ref(null)
 const roleForm = ref({
@@ -165,8 +223,12 @@ const roleForm = ref({
 })
 
 const rules = {
-  name: [required('请输入角色名称')],
-  code: [required('请输入角色编码')]
+  name: [required('请输入角色名称')]
+}
+
+// 生成唯一的角色编码
+const generateRoleCode = () => {
+  return `role_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
 }
 
 // 加载角色列表
@@ -174,7 +236,9 @@ const loadRoles = async () => {
   loading.value = true
   try {
     const response = await getSystemRoles()
-    roles.value = response.data || []
+    roles.value = Array.isArray(response) ? response : []
+    console.log('[角色权限] 角色列表加载:', roles.value)
+    // 注意：不在这里自动选择角色，等权限加载完成后再选
   } catch (error) {
     ElMessage.error('加载角色列表失败')
   } finally {
@@ -182,15 +246,103 @@ const loadRoles = async () => {
   }
 }
 
+// 加载权限列表
+const loadPermissions = async () => {
+  try {
+    const resp = await getSystemPermissions()
+    const list = Array.isArray(resp) ? resp : (resp?.items || resp?.data || [])
+    permissions.value = list
+    console.log('[角色权限] 权限列表加载:', list)
+    
+    // 如果后端权限列表为空，从角色中提取（临时方案）
+    if (list.length === 0 && roles.value.length > 0) {
+      const allPerms = new Set()
+      roles.value.forEach(r => {
+        (r.permissions || []).forEach(p => allPerms.add(p))
+      })
+      permissions.value = Array.from(allPerms).map(code => ({ code, name: code }))
+      console.log('[角色权限] 从角色提取权限:', permissions.value)
+    }
+  } catch (error) {
+    console.error('[角色权限] 加载权限列表失败:', error)
+    // 降级：从现有角色提取权限
+    if (roles.value.length > 0) {
+      const allPerms = new Set()
+      roles.value.forEach(r => {
+        (r.permissions || []).forEach(p => allPerms.add(p))
+      })
+      permissions.value = Array.from(allPerms).map(code => ({ code, name: code }))
+    }
+  }
+}
+
+// 只勾选叶子节点（三段code）或无子节点的一级节点
+const getDefaultCheckedKeys = (rolePerms, tree) => {
+  const checked = []
+  // 兼容字符串数组和对象数组
+  const codes = rolePerms.map(p => typeof p === 'string' ? p : p.code)
+  const allCodes = new Set(codes)
+  
+  console.log('[角色权限] getDefaultCheckedKeys 输入:', codes)
+  
+  tree.forEach(parent => {
+    if (parent.children && parent.children.length > 0) {
+      // 有子节点，只检查子节点
+      parent.children.forEach(child => {
+        if (allCodes.has(child.code)) {
+          checked.push(child.id)
+        }
+      })
+    } else {
+      // 无子节点的父节点直接勾选
+      if (allCodes.has(parent.code)) {
+        checked.push(parent.id)
+      }
+    }
+  })
+  
+  console.log('[角色权限] getDefaultCheckedKeys 输出:', checked)
+  return checked
+}
+
 const selectRole = (role) => {
   selectedRole.value = role
-  // 模拟加载该角色的权限
-  if (role.code === 'admin') {
-    selectedPermissions.value = ['1', '1-1', '1-2', '2', '2-1', '2-2', '2-3', '3', '3-1', '3-2', '3-3', '3-4', '4', '4-1', '4-2', '4-3', '5', '5-1', '5-2', '5-3']
-  } else if (role.code === 'caregiver') {
-    selectedPermissions.value = ['1', '1-1', '1-2', '2', '2-1', '2-3', '3', '3-1', '4', '4-1', '4-2', '4-3']
+  console.log('[角色权限] 选中角色:', role)
+  console.log('[角色权限] 当前权限树:', permissionTree.value)
+  
+  // 使用后端返回的权限编码（如果没有，则尝试拉取详情）
+  const perms = role.permissions || []
+  console.log('[角色权限] 角色权限原始数据:', perms)
+  console.log('[角色权限] 角色权限类型:', typeof perms[0], perms[0])
+  
+  if (perms.length > 0) {
+    selectedPermissions.value = perms
+    nextTick(() => {
+      if (treeRef.value) {
+        console.log('[角色权限] treeRef 存在，准备设置勾选')
+        treeRef.value.setCheckedKeys([])
+        // 使用新逻辑：只勾选叶子节点
+        const keys = getDefaultCheckedKeys(perms, permissionTree.value)
+        console.log('[角色权限] 计算出的勾选keys:', keys)
+        treeRef.value.setCheckedKeys(keys)
+        console.log('[角色权限] 已调用 setCheckedKeys')
+        // 验证是否真的设置成功
+        console.log('[角色权限] 当前勾选的keys:', treeRef.value.getCheckedKeys())
+      } else {
+        console.error('[角色权限] treeRef 不存在！')
+      }
+    })
   } else {
-    selectedPermissions.value = ['1', '1-1', '1-2', '2', '2-1', '2-3']
+    console.log('[角色权限] 权限为空，尝试拉取详情')
+    getSystemRoleDetail(role.id).then(detail => {
+      selectedPermissions.value = detail?.permissions || []
+      nextTick(() => {
+        if (treeRef.value) {
+          const keys = getDefaultCheckedKeys(selectedPermissions.value, permissionTree.value)
+          treeRef.value.setCheckedKeys(keys)
+        }
+      })
+    })
   }
 }
 
@@ -205,24 +357,47 @@ const savePermissions = async () => {
     const allKeys = [...checkedKeys, ...halfCheckedKeys]
     
     await updateRolePermissions(selectedRole.value.id, allKeys)
+    
+    // 无论是否当前用户角色，都刷新本地权限（因为可能同时在线）
+    try {
+      const userInfoStr = localStorage.getItem('userInfo')
+      const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
+      
+      // 刷新当前用户的最新权限
+      if (userInfo) {
+        const me = await getCurrentUser()
+        const _user = me?.data ?? me
+        if (_user) {
+          localStorage.setItem('userInfo', JSON.stringify(_user))
+          ElMessage.success('权限保存成功，页面即将刷新')
+          // 延迟刷新，让用户看到成功提示
+          setTimeout(() => {
+            window.location.reload()
+          }, 800)
+          return
+        }
+      }
+    } catch {}
+    
     ElMessage.success('权限保存成功')
   } catch (error) {
-    ElMessage.error('保存失败')
+    const msg = error?.response?.data?.message || error?.response?.data?.detail || '保存失败'
+    ElMessage.error(msg)
   }
 }
 
 const showAddRoleDialog = () => {
-  showAddDialog()
   roleForm.value = {
     name: '',
-    code: '',
+    code: generateRoleCode(),
     description: ''
   }
+  openDialog('add')
 }
 
 const editRole = (role) => {
-  showEditDialog()
   roleForm.value = { ...role }
+  openDialog('edit')
 }
 
 const deleteRole = async (role) => {
@@ -270,8 +445,17 @@ const saveRole = async () => {
 }
 
 // 初始化加载
-onMounted(() => {
-  loadRoles()
+onMounted(async () => {
+  // 先加载权限列表（确保树结构就绪）
+  await loadPermissions()
+  // 再加载角色列表
+  await loadRoles()
+  // 最后选择第一个角色
+  if (roles.value.length > 0) {
+    nextTick(() => {
+      selectRole(roles.value[0])
+    })
+  }
 })
 </script>
 
