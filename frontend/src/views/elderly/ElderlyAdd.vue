@@ -104,7 +104,7 @@
 
         <!-- 护理信息 -->
         <el-divider content-position="left">
-          <el-icon><First /></el-icon> 护理信息
+          <el-icon><FirstAidKit /></el-icon> 护理信息
         </el-divider>
 
         <el-row :gutter="20">
@@ -236,7 +236,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, First, Phone, Document, Check, RefreshLeft, Close, Plus } from '@element-plus/icons-vue'
+import { User, FirstAidKit, Phone, Document, Check, RefreshLeft, Close, Plus } from '@element-plus/icons-vue'
 import { createElderly, updateElderly, getElderlyDetail } from '@/api'
 import { formatDate } from '@/utils/format'
 
@@ -368,7 +368,7 @@ const handleSubmit = async () => {
           await createElderly(form.value)
           ElMessage.success('老人信息添加成功')
         }
-        router.push('/elderly/list')
+        router.push('/home/elderlies/list')
       } catch (error) {
         ElMessage.error(error.response?.data?.detail || '操作失败')
       } finally {

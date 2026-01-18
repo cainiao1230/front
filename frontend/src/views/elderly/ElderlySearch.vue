@@ -210,17 +210,17 @@ const calculateAge = (birthday) => {
 
 // 查看详情
 const viewDetail = (elderly) => {
-  router.push(`/elderly/detail/${elderly.id}`)
+  router.push(`/home/elderly/detail/${elderly.id}`)
 }
 
 // 编辑
 const editElderly = (elderly) => {
-  router.push(`/elderly/edit/${elderly.id}`)
+  router.push(`/home/elderly/edit/${elderly.id}`)
 }
 
 // 查看护理记录
 const viewCareRecords = (elderly) => {
-  router.push(`/care/records?elderly_id=${elderly.id}`)
+  router.push(`/home/care/records?elderly_id=${elderly.id}`)
 }
 </script>
 

@@ -359,6 +359,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { getDashboardStats } from '@/api/dashboard'
+import { getTodayTasks } from '@/api/care'
+import { getTodos, completeTodo as completeTodoApi } from '@/api/todo'
+import { getNotices } from '@/api/notice'
+import { getMessages } from '@/api/message'
+import { getBedStatsByFloor } from '@/api/bed'
 import {
   Warning,
   CircleCheck,
@@ -482,46 +489,21 @@ const loadAlerts = async () => {
 const loadTasks = async () => {
   tasksLoading.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 600))
-    
-    tasks.value = [
-      {
-        id: 'T001',
-        elderlyName: '王奶奶',
-        roomNumber: '301',
-        taskType: '测血压',
-        scheduledTime: '08:30',
-        assignee: '张护士',
-        status: 'completed'
-      },
-      {
-        id: 'T002',
-        elderlyName: '李爷爷',
-        roomNumber: '205',
-        taskType: '康复训练',
-        scheduledTime: '10:00',
-        assignee: '王护理员',
-        status: 'in_progress'
-      },
-      {
-        id: 'T003',
-        elderlyName: '张阿姨',
-        roomNumber: '108',
-        taskType: '用药提醒',
-        scheduledTime: '14:00',
-        assignee: '李护士',
-        status: 'pending'
-      },
-      {
-        id: 'T004',
-        elderlyName: '赵伯伯',
-        roomNumber: '302',
-        taskType: '健康检查',
-        scheduledTime: '15:30',
-        assignee: '张护士',
-        status: 'overdue'
-      }
-    ]
+    const res = await getTodayTasks()
+    if (res.code === 0 && res.data) {
+      // 将后端数据转换为前端格式
+      tasks.value = (res.data.items || []).map(task => ({
+        id: task.id,
+        elderlyName: task.elderlyName,
+        roomNumber: task.roomNumber || '--',
+        taskType: task.title,
+        scheduledTime: task.scheduledTime ? new Date(task.scheduledTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '--',
+        assignee: task.assignedToName,
+        status: task.status
+      }))
+    } else {
+      tasks.value = []
+    }
   } catch (error) {
     console.error('加载任务失败:', error)
     tasks.value = []
@@ -534,37 +516,52 @@ const loadTasks = async () => {
 const loadMetrics = async () => {
   metricsLoading.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 400))
-    
-    metrics.value = [
-      {
-        id: 'elderly',
-        title: '在住老人',
-        value: 86,
-        icon: User,
-        trend: { type: 'up', value: '+2.3%' }
-      },
-      {
-        id: 'beds',
-        title: '空余床位',
-        value: 14,
-        icon: Goods,
-        trend: { type: 'down', value: '-1.2%' }
-      },      {
-        id: 'new',
-        title: '本月新入住',
-        value: 5,
-        icon: Sunny,
-        trend: { type: 'up', value: '+1.5%' }
-      },
-      {
-        id: 'messages',
-        title: '未读消息',
-        value: 12,
-        icon: Message,
-        trend: { type: 'up', value: '+3.1%' }
+    const res = await getDashboardStats()
+    if (res.code === 0 && res.data) {
+      const { elderly, beds, tasks: taskStats } = res.data
+      
+      // 同时获取未读消息数量
+      let unreadCount = 0
+      try {
+        const msgRes = await getMessages({ isRead: false })
+        if (msgRes.code === 0 && msgRes.data) {
+          unreadCount = msgRes.data.unreadCount || msgRes.data.items?.length || 0
+        }
+      } catch (e) {
+        console.warn('获取消息数量失败:', e)
       }
-    ]
+      
+      metrics.value = [
+        {
+          id: 'elderly',
+          title: '在住老人',
+          value: elderly?.inResidence || 0,
+          icon: User,
+          trend: { type: 'up', value: `${elderly?.total || 0}人` }
+        },
+        {
+          id: 'beds',
+          title: '空余床位',
+          value: beds?.free || 0,
+          icon: Goods,
+          trend: { type: beds?.occupancyRate > 80 ? 'down' : 'up', value: `占用率${beds?.occupancyRate || 0}%` }
+        },
+        {
+          id: 'tasks',
+          title: '今日任务',
+          value: taskStats?.todayTotal || 0,
+          icon: Sunny,
+          trend: { type: 'up', value: `已完成${taskStats?.todayCompleted || 0}` }
+        },
+        {
+          id: 'messages',
+          title: '未读消息',
+          value: unreadCount,
+          icon: Message,
+          trend: { type: unreadCount > 0 ? 'up' : 'down', value: unreadCount > 0 ? '待处理' : '已清空' }
+        }
+      ]
+    }
   } catch (error) {
     console.error('加载运营指标失败:', error)
     metrics.value = []
@@ -573,41 +570,58 @@ const loadMetrics = async () => {
   }
 }
 
-// 🛏️ 加载床位使用情况
+// 🛏️ 加载床位使用情况（按楼层统计）
 const loadFloors = async () => {
   floorsLoading.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    floors.value = [
-      {
-        id: 'F1',
-        floorName: '1楼',
-        totalBeds: 40,
-        occupiedBeds: 32,
-        availableBeds: 8,
-        occupancyRate: 80
-      },
-      {
-        id: 'F2',
-        floorName: '2楼',
-        totalBeds: 40,
-        occupiedBeds: 36,
-        availableBeds: 4,
-        occupancyRate: 90
-      },
-      {
-        id: 'F3',
-        floorName: '3楼',
-        totalBeds: 40,
-        occupiedBeds: 28,
-        availableBeds: 12,
-        occupancyRate: 70
+    // 使用后端新增的楼层统计接口
+    const res = await getBedStatsByFloor()
+    if (res.code === 200 && res.data) {
+      // 后端返回格式: [{ floor, total, occupied, free, maintenance, locked, usage_rate }]
+      floors.value = res.data.map(item => ({
+        id: item.floor,
+        floorName: item.floor,
+        totalBeds: item.total || 0,
+        occupiedBeds: item.occupied || 0,
+        availableBeds: item.free || 0,
+        occupancyRate: item.usage_rate || 0
+      }))
+    } else {
+      // 如果新接口不可用，回退到dashboard统计
+      const dashRes = await getDashboardStats()
+      if (dashRes.code === 0 && dashRes.data && dashRes.data.beds) {
+        const { beds } = dashRes.data
+        floors.value = [{
+          id: 'total',
+          floorName: '全部床位',
+          totalBeds: beds.total || 0,
+          occupiedBeds: beds.occupied || 0,
+          availableBeds: beds.free || 0,
+          occupancyRate: beds.occupancyRate || 0
+        }]
+      } else {
+        floors.value = []
       }
-    ]
+    }
   } catch (error) {
     console.error('加载楼层数据失败:', error)
-    floors.value = []
+    // 发生错误时回退到dashboard统计
+    try {
+      const dashRes = await getDashboardStats()
+      if (dashRes.code === 0 && dashRes.data && dashRes.data.beds) {
+        const { beds } = dashRes.data
+        floors.value = [{
+          id: 'total',
+          floorName: '全部床位',
+          totalBeds: beds.total || 0,
+          occupiedBeds: beds.occupied || 0,
+          availableBeds: beds.free || 0,
+          occupancyRate: beds.occupancyRate || 0
+        }]
+      }
+    } catch (e) {
+      floors.value = []
+    }
   } finally {
     floorsLoading.value = false
   }
@@ -617,35 +631,23 @@ const loadFloors = async () => {
 const loadTodos = async () => {
   todosLoading.value = true
   try {
-    const user = getUserInfo()
-    await new Promise(resolve => setTimeout(resolve, 550))
+    // 后端状态: open (待处理) / done (已完成)
+    const res = await getTodos({ status: 'open' })
+    // 兼容不同的响应格式
+    const data = res.data || res
+    const items = data.items || data || []
     
-    todos.value = [
-      {
-        id: 'TD001',
-        title: '提交3月护理报告',
-        deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'pending'
-      },
-      {
-        id: 'TD002',
-        title: '更新302房间老人健康档案',
-        deadline: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'overdue'
-      },
-      {
-        id: 'TD003',
-        title: '采购下月医疗物资',
-        deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'pending'
-      },
-      {
-        id: 'TD004',
-        title: '组织本月家属座谈会',
-        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'pending'
-      }
-    ]
+    if (Array.isArray(items)) {
+      todos.value = items.map(todo => ({
+        id: todo.id,
+        title: todo.title,
+        deadline: todo.due_at || todo.dueDate,
+        status: todo.status === 'done' ? 'completed' : 'pending',
+        priority: todo.priority || 'medium'
+      }))
+    } else {
+      todos.value = []
+    }
   } catch (error) {
     console.error('加载待办事项失败:', error)
     todos.value = []
@@ -658,31 +660,18 @@ const loadTodos = async () => {
 const loadNotices = async () => {
   noticesLoading.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 450))
-    
-    notices.value = [
-      {
-        id: 'N001',
-        title: '关于清明节放假安排的通知',
-        publishTime: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        summary: '根据国家法定节假日安排，结合我院实际情况，现将清明节放假安排通知如下...',
-        isPinned: true
-      },
-      {
-        id: 'N002',
-        title: '春季健康讲座活动预告',
-        publishTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        summary: '为关爱老人健康，我院将于4月10日举办春季健康知识讲座，欢迎各位老人及家属参加。',
-        isPinned: false
-      },
-      {
-        id: 'N003',
-        title: '新护理设备使用培训通知',
-        publishTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        summary: '为提高护理质量，我院新引进一批护理设备，定于本周五下午进行使用培训。',
-        isPinned: false
-      }
-    ]
+    const res = await getNotices({ status: 'published', page_size: 5 })
+    if (res.code === 0 && res.data) {
+      notices.value = (res.data.items || []).map(notice => ({
+        id: notice.id,
+        title: notice.title,
+        publishTime: notice.publishedAt,
+        summary: notice.content?.substring(0, 100) + (notice.content?.length > 100 ? '...' : ''),
+        isPinned: notice.type === 'important'
+      }))
+    } else {
+      notices.value = []
+    }
   } catch (error) {
     console.error('加载公告失败:', error)
     notices.value = []
@@ -830,12 +819,21 @@ const viewTodoDetail = (todoId) => {
 }
 
 // 标记待办事项完成
-const markTodoComplete = (todoId) => {
-  const index = todos.value.findIndex(todo => todo.id === todoId)
-  if (index !== -1) {
-    todos.value[index].status = 'completed'
-    // 这里应该调用API更新状态
-    console.log('标记待办事项完成:', todoId)
+const markTodoComplete = async (todoId) => {
+  try {
+    const res = await completeTodoApi(todoId)
+    if (res.code === 0) {
+      const index = todos.value.findIndex(todo => todo.id === todoId)
+      if (index !== -1) {
+        todos.value[index].status = 'completed'
+      }
+      ElMessage.success('待办事项已完成')
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (error) {
+    console.error('标记待办事项完成失败:', error)
+    ElMessage.error('操作失败')
   }
 }
 

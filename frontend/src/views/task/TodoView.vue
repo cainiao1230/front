@@ -99,9 +99,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Clock } from '@element-plus/icons-vue'
+import { getTodos, createTodo, completeTodo as completeTodoApi, deleteTodo as deleteTodoApi } from '@/api'
 import { formatDate } from '@/utils/format'
 import { required } from '@/utils/validators'
 
@@ -109,43 +110,58 @@ const activeTab = ref('all')
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
+const loading = ref(false)
 
-const todos = ref([
-  {
-    id: 1,
-    title: '检查王大爹的血压记录',
-    priority: 'high',
-    due_date: '2024-01-20 14:00',
-    completed: false
-  },
-  {
-    id: 2,
-    title: '准备下周的康复计划',
-    priority: 'medium',
-    due_date: '2024-01-22 10:00',
-    completed: false
-  },
-  {
-    id: 3,
-    title: '更新老人健康档案',
-    priority: 'low',
-    due_date: '2024-01-25 16:00',
-    completed: true
-  }
-])
+const todos = ref([])
 
 let draggedTodo = null
 
 const todoForm = ref({
   title: '',
   priority: 'medium',
-  due_date: null
+  due_date: null,
+  description: ''
 })
 
 const rules = {
   title: [required('请输入待办标题')],
   priority: [required('请选择优先级')]
 }
+
+// 加载待办列表
+const loadTodos = async () => {
+  loading.value = true
+  try {
+    const res = await getTodos()
+    // 兼容不同响应格式
+    const data = res.data || res
+    const items = data.items || data || []
+    
+    if (Array.isArray(items)) {
+      // 后端字段: id, title, status(open/done), due_at, created_at, updated_at
+      todos.value = items.map(todo => ({
+        id: todo.id,
+        title: todo.title,
+        description: todo.description || '',
+        priority: todo.priority || 'medium',
+        due_date: todo.due_at || todo.dueDate,
+        completed: todo.status === 'done'
+      }))
+    } else {
+      todos.value = []
+    }
+  } catch (error) {
+    console.error('加载待办失败:', error)
+    ElMessage.error('加载待办失败')
+    todos.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadTodos()
+})
 
 const pendingCount = computed(() => {
   return todos.value.filter(t => !t.completed).length
@@ -220,11 +236,25 @@ const drop = (targetTodo) => {
   draggedTodo = null
 }
 
-const toggleTodo = (todo) => {
-  if (todo.completed) {
-    ElMessage.success('已完成')
-  } else {
-    ElMessage.info('已标讴为未完成')
+const toggleTodo = async (todo) => {
+  try {
+    if (todo.completed) {
+      // 标记为完成
+      const res = await completeTodoApi(todo.id)
+      if (res.code === 0) {
+        ElMessage.success('已完成')
+      } else {
+        todo.completed = false // 恢复状态
+        ElMessage.error(res.message || '操作失败')
+      }
+    } else {
+      // 目前后端没有取消完成的接口，暂时只支持完成操作
+      todo.completed = true // 保持已完成状态
+      ElMessage.warning('暂不支持取消完成操作')
+    }
+  } catch (error) {
+    todo.completed = !todo.completed // 恢复状态
+    ElMessage.error('操作失败')
   }
 }
 
@@ -233,7 +263,8 @@ const showAddDialog = () => {
   todoForm.value = {
     title: '',
     priority: 'medium',
-    due_date: null
+    due_date: null,
+    description: ''
   }
   dialogVisible.value = true
 }
@@ -249,23 +280,44 @@ const saveTodo = async () => {
     await formRef.value.validate()
     
     if (isEdit.value) {
-      const index = todos.value.findIndex(t => t.id === todoForm.value.id)
-      if (index > -1) {
-        todos.value[index] = { ...todoForm.value }
-      }
-      ElMessage.success('编辑成功')
-    } else {
-      todos.value.push({
-        id: Date.now(),
-        ...todoForm.value,
-        completed: false
+      // 调用更新API
+      const { updateTodo } = await import('@/api/todo')
+      const res = await updateTodo(todoForm.value.id, {
+        title: todoForm.value.title,
+        due_at: todoForm.value.due_date
       })
-      ElMessage.success('添加成功')
+      
+      if (res.code === 200 || res.id) {
+        ElMessage.success('编辑成功')
+        loadTodos()
+      } else {
+        // 回退到本地更新
+        const index = todos.value.findIndex(t => t.id === todoForm.value.id)
+        if (index > -1) {
+          todos.value[index] = { ...todoForm.value }
+        }
+        ElMessage.success('编辑成功')
+      }
+    } else {
+      // 调用创建API - 后端字段: title, due_at
+      const res = await createTodo({
+        title: todoForm.value.title,
+        due_at: todoForm.value.due_date
+      })
+      
+      // 兼容不同响应格式
+      if (res.code === 200 || res.code === 0 || res.id) {
+        ElMessage.success('添加成功')
+        loadTodos() // 重新加载列表
+      } else {
+        ElMessage.error(res.message || '添加失败')
+        return
+      }
     }
     
     dialogVisible.value = false
   } catch (error) {
-    console.error('表单验证失败')
+    console.error('表单验证失败', error)
   }
 }
 
@@ -277,11 +329,16 @@ const deleteTodo = async (todo) => {
       type: 'warning'
     })
     
-    const index = todos.value.findIndex(t => t.id === todo.id)
-    if (index > -1) {
-      todos.value.splice(index, 1)
+    const res = await deleteTodoApi(todo.id)
+    if (res.code === 0) {
+      const index = todos.value.findIndex(t => t.id === todo.id)
+      if (index > -1) {
+        todos.value.splice(index, 1)
+      }
+      ElMessage.success('删除成功')
+    } else {
+      ElMessage.error(res.message || '删除失败')
     }
-    ElMessage.success('删除成功')
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')

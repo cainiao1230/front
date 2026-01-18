@@ -15,25 +15,27 @@ export const CARE_LEVEL_OPTIONS = [
 
 // 床位状态
 export const BED_STATUS = {
-  AVAILABLE: 'available',
+  FREE: 'free',
   OCCUPIED: 'occupied',
   MAINTENANCE: 'maintenance'
 }
 
 export const BED_STATUS_OPTIONS = [
-  { label: '空闲', value: BED_STATUS.AVAILABLE, type: 'success' },
+  { label: '空闲', value: BED_STATUS.FREE, type: 'success' },
   { label: '已占用', value: BED_STATUS.OCCUPIED, type: 'warning' },
   { label: '维护中', value: BED_STATUS.MAINTENANCE, type: 'info' }
 ]
 
 // 床位类型
 export const BED_TYPES = {
+  STANDARD: 'standard',
   SINGLE: 'single',
   DOUBLE: 'double',
   VIP: 'vip'
 }
 
 export const BED_TYPE_OPTIONS = [
+  { label: '标准', value: BED_TYPES.STANDARD, type: '' },
   { label: '单人间', value: BED_TYPES.SINGLE, type: '' },
   { label: '双人间', value: BED_TYPES.DOUBLE, type: 'success' },
   { label: 'VIP', value: BED_TYPES.VIP, type: 'warning' }

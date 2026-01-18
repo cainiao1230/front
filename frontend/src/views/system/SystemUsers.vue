@@ -303,18 +303,17 @@ const editUser = (user) => {
 
 const resetPassword = async (user) => {
   try {
-    const { value: newPassword } = await ElMessageBox.prompt('请输入新密码', '重置密码', {
+    const { value: newPassword } = await ElMessageBox.prompt('请输入新密码（留空则重置为默认密码123456）', '重置密码', {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
       inputType: 'password',
-      inputPattern: /.{6,}/,
-      inputErrorMessage: '密码至少 6 位'
+      inputPlaceholder: '留空则重置为默认密码'
     })
     
-    if (newPassword) {
-      await updateSystemUser(user.id, { password: newPassword })
-      ElMessage.success('密码重置成功')
-    }
+    // 调用专门的重置密码接口
+    const { resetUserPassword } = await import('@/api')
+    await resetUserPassword(user.id, newPassword || null)
+    ElMessage.success(newPassword ? '密码重置成功' : '密码已重置为默认密码123456')
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('操作失败')

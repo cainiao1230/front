@@ -2,7 +2,7 @@
   <div class="bed-floor-page">
     <PageCard title="各楼层床位使用情况">
       <el-tabs v-model="activeFloor" @tab-change="loadFloorData">
-        <el-tab-pane v-for="floor in floors" :key="floor" :label="`${floor}楼`" :name="floor" />
+        <el-tab-pane v-for="floor in floors" :key="floor" :label="floor" :name="floor" />
       </el-tabs>
 
       <div class="floor-stats">
@@ -81,8 +81,8 @@ import PageCard from '@/components/common/PageCard.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 
-const activeFloor = ref(1)
-const floors = [1, 2, 3, 4, 5]
+const activeFloor = ref('1F')
+const floors = ['1F', '2F', '3F', '4F', '5F']
 const loading = ref(false)
 const rooms = ref([])
 
@@ -104,9 +104,13 @@ const floorStats = computed(() => {
 const loadFloorData = async () => {
   loading.value = true
   try {
+    // 使用 /api/beds/floor/{floor}/grouped 接口获取按房间分组的数据
     const response = await getFloorBeds(activeFloor.value)
-    rooms.value = response.data || []
+    // 响应拦截器已解包，response 直接是数据数组
+    rooms.value = Array.isArray(response) ? response : (response.data || response || [])
+    console.log('楼层数据:', rooms.value)
   } catch (error) {
+    console.error('加载楼层数据失败:', error)
     ElMessage.error('加载楼层数据失败')
   } finally {
     loading.value = false
@@ -122,14 +126,24 @@ const getRoomStatusType = (room) => {
 }
 
 const getBedClass = (status) => {
-  return `bed-${status}`
+  // 后端状态: free, occupied, maintenance, locked
+  const statusMap = {
+    'free': 'available',
+    'available': 'available',
+    'occupied': 'occupied',
+    'maintenance': 'maintenance',
+    'locked': 'reserved'
+  }
+  return `bed-${statusMap[status] || status}`
 }
 
 const handleBedClick = (bed) => {
-  if (bed.status === 'available') {
+  if (bed.status === 'available' || bed.status === 'free') {
     ElMessage.info('床位空闲，可分配')
   } else if (bed.status === 'occupied') {
-    ElMessage.info(`床位已分配给：${bed.elderly_name}`)
+    ElMessage.info(`床位已分配给：${bed.elderly_name || '某老人'}`)
+  } else if (bed.status === 'maintenance') {
+    ElMessage.warning('床位维护中')
   }
 }
 

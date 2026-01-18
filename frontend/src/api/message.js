@@ -20,6 +20,11 @@ export const markAllMessagesAsRead = () => {
   return request.post('/api/messages/read-all')
 }
 
+// 发送消息
+export const sendMessage = (data) => {
+  return request.post('/api/messages', data)
+}
+
 // 删除消息
 export const deleteMessage = (id) => {
   return request.delete(`/api/messages/${id}`)

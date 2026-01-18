@@ -50,6 +50,17 @@ const routes = [
         component: () => import('@/views/elderly/ElderlyAdd.vue'),
         meta: { requiresAuth: true, title: '新增老人' }
       },
+      // 老人详情和编辑页
+      { 
+        path: 'elderly/detail/:id', 
+        component: () => import('@/views/elderly/ElderlyDetail.vue'),
+        meta: { requiresAuth: true, title: '老人详情' }
+      },
+      { 
+        path: 'elderly/edit/:id', 
+        component: () => import('@/views/elderly/ElderlyEdit.vue'),
+        meta: { requiresAuth: true, title: '编辑老人' }
+      },
       // 床位管理相关路由
       { 
         path: 'beds/floor', 

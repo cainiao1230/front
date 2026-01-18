@@ -74,8 +74,8 @@
                   }"
                   @click="selectBed(bed)"
                 >
-                  <div class="bed-number">{{ bed.bed_number }}</div>
-                  <div class="bed-room">{{ bed.room_number }}</div>
+                  <div class="bed-number">{{ bed.bed_no }}</div>
+                  <div class="bed-room">{{ bed.room }}</div>
                   <div class="bed-type">{{ getBedTypeText(bed.bed_type) }}</div>
                   <div class="bed-price">¥{{ bed.price }}/月</div>
                   <div class="bed-status">
@@ -135,13 +135,13 @@
                 <div class="card-title">🛏️ 床位信息</div>
                 <el-descriptions :column="1" border>
                   <el-descriptions-item label="床位编号">
-                    <el-tag type="primary">{{ selectedBed?.bed_number }}</el-tag>
+                    <el-tag type="primary">{{ selectedBed?.bed_no }}</el-tag>
                   </el-descriptions-item>
                   <el-descriptions-item label="房间号">
-                    {{ selectedBed?.room_number }}
+                    {{ selectedBed?.room }}
                   </el-descriptions-item>
                   <el-descriptions-item label="楼层">
-                    第 {{ selectedBed?.floor }} 楼
+                    {{ selectedBed?.floor }}
                   </el-descriptions-item>
                   <el-descriptions-item label="床位类型">
                     <el-tag type="success" size="small">
@@ -208,8 +208,8 @@ const elderlyList = ref([])
 const filteredElderlyList = ref([])
 const selectedElderly = ref(null)
 
-const selectedFloor = ref(1)
-const floors = [1, 2, 3, 4]
+const selectedFloor = ref('1')
+const floors = ref(['1', '2', '3', '4'])  // 默认楼层，会从数据动态更新
 const bedList = ref([])
 const selectedBed = ref(null)
 
@@ -263,16 +263,40 @@ const handleElderlySelect = (row) => {
 const loadBedList = async () => {
   try {
     const response = await getBedList({ page: 1, page_size: 1000 })
-    const data = response?.data ?? response ?? {}
-    bedList.value = data.items || []
+    
+    // 尝试多种数据结构
+    let items = []
+    if (response?.data?.items) {
+      items = response.data.items
+    } else if (response?.items) {
+      items = response.items
+    } else if (Array.isArray(response?.data)) {
+      items = response.data
+    } else if (Array.isArray(response)) {
+      items = response
+    }
+    
+    bedList.value = items
+    
+    // 动态获取楼层列表
+    const floorSet = new Set(items.map(bed => bed.floor))
+    if (floorSet.size > 0) {
+      floors.value = Array.from(floorSet).sort()
+      selectedFloor.value = floors.value[0]
+    }
+    
+    console.log('床位数据加载完成，楼层:', floors.value, '床位数:', items.length)
   } catch (error) {
+    console.error('加载床位失败:', error)
     ElMessage.error('加载床位列表失败')
   }
 }
 
 // 获取指定楼层的床位
 const getBedsByFloor = (floor) => {
-  return bedList.value.filter(bed => bed.floor === floor)
+  // floor 参数是 '1F', '2F' 等，后端返回的也是 '1F', '2F'
+  const beds = bedList.value.filter(bed => bed.floor === floor)
+  return beds
 }
 
 const isBedFree = (bed) => bed.status === 'free' || bed.status === 'available'
@@ -298,7 +322,7 @@ const getCareTypeColor = (level) => {
 }
 
 const getBedTypeText = (type) => {
-  const map = { 'single': '单人间', 'double': '双人间', 'vip': 'VIP' }
+  const map = { 'standard': '标准', 'single': '单人间', 'double': '双人间', 'vip': 'VIP' }
   return map[type] || type
 }
 
@@ -364,7 +388,7 @@ const handleAllocate = async () => {
     })
     
     ElMessage.success('床位分配成功')
-    router.push('/bed/list')
+    router.push('/home/beds/list')
   } catch (error) {
     ElMessage.error('床位分配失败')
   } finally {

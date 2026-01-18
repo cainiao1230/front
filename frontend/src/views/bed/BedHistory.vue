@@ -120,6 +120,7 @@ const loadElderlyList = async () => {
 onMounted(() => {
   initSearchForm()
   loadElderlyList()
+  loadData()  // 加载历史记录
 })
 
 const getTimelineType = (type) => {

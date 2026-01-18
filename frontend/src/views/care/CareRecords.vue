@@ -230,10 +230,12 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getCareRecords, createCareRecord, getElderlyList } from '@/api'
 
+const route = useRoute()
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)
@@ -281,18 +283,17 @@ const loadRecords = async () => {
   loading.value = true
   try {
     const params = {
-      ...searchForm,
       page: pagination.page,
       page_size: pagination.page_size
     }
     
-    // 护理记录查询需要 elderly_id 参数，若未选择则跳过
-    if (!params.elderly_id) {
-      ElMessage.warning('请先选择老人')
-      tableData.value = []
-      total.value = 0
-      loading.value = false
-      return
+    // elderly_id 现为可选参数，不传则查询所有记录
+    if (searchForm.elderly_id) {
+      params.elderly_id = searchForm.elderly_id
+    }
+    
+    if (searchForm.care_type) {
+      params.care_type = searchForm.care_type
     }
     
     if (dateRange.value && dateRange.value.length === 2) {
@@ -301,10 +302,15 @@ const loadRecords = async () => {
     }
     
     const response = await getCareRecords(params)
-    tableData.value = response.data.items || []
-    total.value = response.data.total || 0
+    // 兼容不同响应格式
+    const data = response.data || response
+    tableData.value = data.items || data || []
+    total.value = data.total || tableData.value.length || 0
   } catch (error) {
+    console.error('加载护理记录失败:', error)
     ElMessage.error('加载护理记录失败')
+    tableData.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
@@ -473,6 +479,12 @@ const deleteRecord = async (row) => {
 }
 
 onMounted(() => {
+  // 从URL参数中获取elderly_id（从快速查询页面跳转过来时会带此参数）
+  const elderlyIdFromQuery = route.query.elderly_id
+  if (elderlyIdFromQuery) {
+    searchForm.elderly_id = Number(elderlyIdFromQuery)
+  }
+  
   loadRecords()
   loadElderlyList()
 })

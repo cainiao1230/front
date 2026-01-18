@@ -87,13 +87,10 @@
         @change="loadBedList"
       >
         <el-table-column prop="id" label="床位ID" width="80" />
-        <el-table-column prop="bed_number" label="床位编号" width="120" />
-        <el-table-column prop="room_number" label="房间号" width="150" />
-        <el-table-column label="楼层" width="80">
-          <template #default="{ row }">
-            {{ row.floor }}楼
-          </template>
-        </el-table-column>
+        <el-table-column prop="bed_no" label="床位编号" width="120" />
+        <el-table-column prop="room" label="房间号" width="120" />
+        <el-table-column prop="building" label="楼栋" width="80" />
+        <el-table-column prop="floor" label="楼层" width="80" />
         <el-table-column label="床位类型" width="100">
           <template #default="{ row }">
             <StatusTag type="bedType" :value="row.bed_type" size="small" />
@@ -105,14 +102,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="elderly_name" label="入住老人" width="120" />
-        <el-table-column label="价格" width="100">
+        <el-table-column label="价格" width="120">
           <template #default="{ row }">
-            ¥{{ row.price }}/月
+            ¥{{ row.price || 0 }}/月
           </template>
         </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'available'" type="primary" size="small" link @click="allocateBed(row)">
+            <el-button v-if="row.status === 'free'" type="primary" size="small" link @click="allocateBed(row)">
               分配床位
             </el-button>
             <el-button v-if="row.status === 'occupied'" type="warning" size="small" link @click="releaseBed(row)">
@@ -157,13 +154,14 @@ const {
 // 床位统计
 const stats = computed(() => {
   const totalCount = total.value
-  const availableCount = tableData.value.filter(bed => bed.status === 'available').length
+  // 后端状态: free=空闲, occupied=已占用
+  const freeCount = tableData.value.filter(bed => bed.status === 'free').length
   const occupiedCount = tableData.value.filter(bed => bed.status === 'occupied').length
   const rate = totalCount > 0 ? (occupiedCount / totalCount * 100) : 0
   
   return {
     total: totalCount,
-    available: availableCount,
+    available: freeCount,
     occupied: occupiedCount,
     rate
   }
@@ -178,13 +176,19 @@ const allocateBed = (bed) => {
 // 释放床位
 const releaseBed = async (bed) => {
   try {
-    await ElMessageBox.confirm(`确认释放床位 ${bed.bed_number} 吗？`, '提示', {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    const { value } = await ElMessageBox.prompt(
+      `确认释放床位 ${bed.bed_no} 吗？请输入释放原因`,
+      '释放床位',
+      {
+        inputPlaceholder: '如：出院、调换等',
+        inputValue: '出院',
+        confirmButtonText: '确认释放',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
     
-    await releaseBedApi(bed.id)
+    await releaseBedApi(bed.id, value)
     ElMessage.success('床位已释放')
     loadBedList()
   } catch (error) {
