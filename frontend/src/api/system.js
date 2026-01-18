@@ -54,9 +54,9 @@ export const getSystemRoleDetail = (id) => {
   return request.get(`/api/roles/${id}`)
 }
 
-// 获取权限列表
+// 获取权限列表（树形结构）
 export const getSystemPermissions = () => {
-  return request.get('/api/roles/permissions')
+  return request.get('/api/system/permissions')
 }
 
 // 批量更新用户状态

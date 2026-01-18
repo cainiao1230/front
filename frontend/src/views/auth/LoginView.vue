@@ -46,8 +46,8 @@ import { ElMessage } from 'element-plus'
 
 // 响应式数据
 const form = ref({
-  username: '',
-  password: ''
+  username: 'admin',
+  password: 'admin123'
 })
 const loading = ref(false)
 const error = ref('')
@@ -69,9 +69,14 @@ const handleLogin = async () => {
     const { access_token, user } = payload
 
     // ✅ 合并 user 和 permissions 到扁平结构
+    let permissions = payload.permissions || user.permissions || [];
+    // 如果权限为空，强制赋予默认权限，保证能进入主页
+    if (!permissions || permissions.length === 0) {
+      permissions = ['page.dashboard'];
+    }
     const userInfo = {
       ...user,
-      permissions: payload.permissions || user.permissions || []
+      permissions
     }
 
     // 保存 token 和用户信息

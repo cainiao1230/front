@@ -353,8 +353,18 @@ const route = useRoute()
 const userInfo = ref({})
 const allowedCodes = ref(new Set())
 
+// 后端格式 → 前端格式：dashboard → page.dashboard
+const toFrontendCode = (code) => {
+  if (!code) return code
+  return code.startsWith('page.') ? code : `page.${code}`
+}
+
 const hasPerm = (code) => {
   if (!code) return true
+  // 管理员角色直接显示所有菜单
+  if ((userInfo.value?.role || '').toLowerCase() === 'admin') {
+    return true
+  }
   // 检查权限集合
   if (!allowedCodes.value || allowedCodes.value.size === 0) {
     // 若没有权限数据，检查是否已加载用户信息
@@ -385,36 +395,53 @@ const userRoleText = computed(() => {
 
 // 初始化用户信息与权限
 onMounted(async () => {
-  try {
-    const userInfoStr = localStorage.getItem('userInfo')
-    userInfo.value = userInfoStr ? JSON.parse(userInfoStr) : {}
-    
-    console.log('[BasicLayout] 加载的用户信息:', userInfo.value)
-    console.log('[BasicLayout] 用户名:', userInfo.value?.username || userInfo.value?.name)
-    console.log('[BasicLayout] 角色:', userInfo.value?.role)
-    console.log('[BasicLayout] 权限:', userInfo.value?.permissions)
-    
-    const codes = (userInfo.value?.permissions || []).map(p => typeof p === 'string' ? p : p.code)
-    allowedCodes.value = new Set(codes)
-    
-    console.log('[BasicLayout] 解析出的权限码:', Array.from(allowedCodes.value))
-    
-    // 若本地无权限数据，尝试拉取最新用户信息
-    if (allowedCodes.value.size === 0) {
+  // 先同步加载用户信息（确保页面立即显示正确的用户名和角色）
+  const userInfoStr = localStorage.getItem('userInfo')
+  if (userInfoStr) {
+    try {
+      userInfo.value = JSON.parse(userInfoStr)
+    } catch (e) {
+      console.error('[BasicLayout] 解析用户信息失败:', e)
+      userInfo.value = {}
+    }
+  }
+  
+  console.log('[BasicLayout] 加载的用户信息:', userInfo.value)
+  console.log('[BasicLayout] 用户名:', userInfo.value?.username || userInfo.value?.name)
+  console.log('[BasicLayout] 角色:', userInfo.value?.role)
+  console.log('[BasicLayout] 权限数量:', userInfo.value?.permissions?.length || 0)
+  
+  // 后端返回的权限码转换为前端格式：dashboard → page.dashboard
+  const codes = (userInfo.value?.permissions || []).map(p => {
+    const code = typeof p === 'string' ? p : p.code
+    return toFrontendCode(code)
+  })
+  allowedCodes.value = new Set(codes)
+  
+  console.log('[BasicLayout] 解析出的权限码 (转换后):', Array.from(allowedCodes.value))
+  
+  // 若本地无权限数据，尝试拉取最新用户信息
+  if (allowedCodes.value.size === 0) {
+    try {
       console.log('[BasicLayout] 本地无权限，尝试调用 /api/auth/me')
       const me = await getCurrentUser()
-      const _user = me?.data ?? me
-      console.log('[BasicLayout] /api/auth/me 返回:', _user)
+      const response = me?.data ?? me
+      console.log('[BasicLayout] /api/auth/me 返回:', response)
+      // 后端返回 {user: {...}, permissions: [...]} 结构，需要合并
+      const _user = response?.user ? { ...response.user, permissions: response.permissions } : response
       if (_user) {
         localStorage.setItem('userInfo', JSON.stringify(_user))
         userInfo.value = _user
-        const newCodes = (_user.permissions || []).map(p => typeof p === 'string' ? p : p.code)
+        const newCodes = (_user.permissions || []).map(p => {
+          const code = typeof p === 'string' ? p : p.code
+          return toFrontendCode(code)
+        })
         allowedCodes.value = new Set(newCodes)
-        console.log('[BasicLayout] 更新后的权限码:', Array.from(allowedCodes.value))
+        console.log('[BasicLayout] 更新后的权限码 (转换后):', Array.from(allowedCodes.value))
       }
+    } catch (err) {
+      console.error('[BasicLayout] 拉取用户信息失败:', err)
     }
-  } catch (err) {
-    console.error('[BasicLayout] 加载用户信息失败:', err)
   }
   
   // 加载初始数据

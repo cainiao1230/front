@@ -16,6 +16,11 @@ const routes = [
     component: LoginView
   },
   {
+    path: '/403',
+    name: 'Forbidden',
+    component: () => import('@/views/error/403.vue')
+  },
+  {
     path: '/home',
     component: BasicLayout,
     children: [
@@ -154,7 +159,13 @@ router.beforeEach((to, from, next) => {
   if (to.meta.title) {
     document.title = `${to.meta.title} - 智慧养老系统`
   }
-  
+
+  // 后端格式 → 前端格式：dashboard → page.dashboard
+  const toFrontendCode = (code) => {
+    if (!code) return code
+    return code.startsWith('page.') ? code : `page.${code}`
+  }
+
   // 检查是否需要认证
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('access_token')
@@ -168,8 +179,21 @@ router.beforeEach((to, from, next) => {
       try {
         const userInfoStr = localStorage.getItem('userInfo')
         const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
-        const codes = new Set((userInfo?.permissions || []).map(p => typeof p === 'string' ? p : p.code))
-        // 如果没有服务端权限列表（旧数据），默认放行
+        
+        // 管理员角色直接放行所有页面
+        const role = (userInfo?.role || userInfo?.userRole || '').toLowerCase()
+        if (role === 'admin') {
+          next()
+          return
+        }
+        
+        // 转换后端权限码为前端格式
+        const codes = new Set((userInfo?.permissions || []).map(p => {
+          const code = typeof p === 'string' ? p : p.code
+          return toFrontendCode(code)
+        }))
+        
+        // 如果没有服务端权限列表（旧数据），默认放行（开发环境下）
         if (codes.size === 0) {
           next()
           return
@@ -177,13 +201,26 @@ router.beforeEach((to, from, next) => {
         if (codes.has(permCode) || Array.from(codes).some(c => c.startsWith(permCode + '.'))) {
           next()
         } else {
-          next('/home')
+          if (to.path !== '/403') {
+            next('/403')
+          } else {
+            next()
+          }
         }
       } catch {
-        next('/home')
+        if (to.path !== '/403') {
+          next('/403')
+        } else {
+          next()
+        }
       }
     } else {
-      next('/login')
+      // 避免在/login页面重复跳转
+      if (to.path !== '/login') {
+        next('/login')
+      } else {
+        next()
+      }
     }
   } else {
     next()

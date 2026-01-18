@@ -35,9 +35,16 @@
       <el-col :span="16">
         <PageCard :title="selectedRole ? `${selectedRole.name} - 权限配置` : '请选择角色'">
           <template #actions>
-            <el-button v-if="selectedRole" type="primary" @click="savePermissions">
+            <el-button 
+              v-if="selectedRole && !isAdminRole" 
+              type="primary" 
+              @click="savePermissions"
+            >
               <el-icon><Select /></el-icon> 保存权限
             </el-button>
+            <el-tag v-if="selectedRole && isAdminRole" type="info">
+              管理员默认拥有所有权限
+            </el-tag>
           </template>
 
           <el-empty v-if="!selectedRole" description="请在左侧选择一个角色" />
@@ -51,6 +58,7 @@
                       ref="treeRef"
                       :expand-on-click-node="false"
                       :check-strictly="false"
+                      :class="{ 'tree-disabled': isAdminRole }"
                     >
                       <template #default="{ data }">
                         <span class="tree-node">
@@ -99,26 +107,62 @@ const treeRef = ref(null)
 const loading = ref(false)
 const permissions = ref([])
 
-// 将权限列表按 code 点分割构建树（page.module → page.module.subpage）
+// ============ 权限 code 格式转换工具函数 ============
+// 前端使用 page.xxx 格式，后端数据库使用 xxx 格式（去掉 page. 前缀）
+
+// 前端格式 → 后端格式：page.dashboard → dashboard
+const toBackendCode = (code) => {
+  if (!code) return code
+  return code.startsWith('page.') ? code.substring(5) : code
+}
+
+// 后端格式 → 前端格式：dashboard → page.dashboard
+const toFrontendCode = (code) => {
+  if (!code) return code
+  return code.startsWith('page.') ? code : `page.${code}`
+}
+
+// 批量转换
+const toBackendCodes = (codes) => codes.map(toBackendCode)
+const toFrontendCodes = (codes) => codes.map(toFrontendCode)
+
+// 直接使用后端返回的树形权限结构
 const permissionTree = computed(() => {
-  console.log('[角色权限] 生成权限树，permissions.value:', permissions.value)
+  console.log('[角色权限] 权限树原始数据:', permissions.value)
+  
+  // 后端返回的是树形结构，需要转换为 el-tree 需要的格式
+  const transformNode = (node) => {
+    const result = {
+      id: node.code || node.id,
+      code: node.code || node.id,
+      label: node.name || node.label || node.code,
+      description: node.description || ''
+    }
+    
+    // 如果有子节点，递归转换
+    if (node.children && node.children.length > 0) {
+      result.children = node.children.map(transformNode)
+    }
+    
+    return result
+  }
+  
+  // 如果后端返回的已经是树形结构
+  if (Array.isArray(permissions.value) && permissions.value.length > 0) {
+    const firstItem = permissions.value[0]
+    // 检查是否是树形结构（有 children 且不为 null）
+    if (firstItem.children && Array.isArray(firstItem.children)) {
+      const tree = permissions.value.map(transformNode)
+      console.log('[角色权限] 转换后的权限树:', tree)
+      return tree
+    }
+  }
+  
+  // 兼容旧的扁平结构（如果后端还没更新）
+  console.log('[角色权限] 检测到扁平结构，尝试手动构建树')
   const tree = []
   const map = {}
   const parentCodes = new Set()
-  
-  // 定义显示顺序（按导航栏顺序）
-  const orderMap = {
-    'page.dashboard': 1,
-    'page.elderly': 2,
-    'page.bed': 3,
-    'page.care': 4,
-    'page.medication': 5,
-    'page.todo': 6,
-    'page.message': 7,
-    'page.notice': 8,
-    'page.system': 9,
-    'page.log': 10
-  }
   
   // 第一遍：识别哪些是父节点（有子节点的2段code）
   permissions.value.forEach(perm => {
@@ -130,36 +174,13 @@ const permissionTree = computed(() => {
     }
   })
   
-  // 自定义排序：按 orderMap 定义的顺序，未定义的按字母顺序
-  const sorted = [...permissions.value].sort((a, b) => {
-    const codeA = a.code || a || ''
-    const codeB = b.code || b || ''
-    const partsA = String(codeA).split('.')
-    const partsB = String(codeB).split('.')
-    
-    // 提取一级code (page.xxx)
-    const rootA = partsA.slice(0, 2).join('.')
-    const rootB = partsB.slice(0, 2).join('.')
-    
-    const orderA = orderMap[rootA] || 999
-    const orderB = orderMap[rootB] || 999
-    
-    // 先按一级排序
-    if (orderA !== orderB) {
-      return orderA - orderB
-    }
-    // 同一级内按 code 字母顺序
-    return codeA.localeCompare(codeB)
-  })
-  
   // 第二遍：构建树
-  sorted.forEach(perm => {
+  permissions.value.forEach(perm => {
     const code = perm.code || perm || ''
     const parts = String(code).split('.')
     
     if (parts.length === 2) {
       if (parentCodes.has(code)) {
-        // 这是一个真正的父节点（有子节点）
         const node = {
           id: code,
           code: code,
@@ -170,7 +191,6 @@ const permissionTree = computed(() => {
         tree.push(node)
         map[code] = node
       } else {
-        // 这是一个没有子节点的叶子节点
         tree.push({
           id: code,
           code: code,
@@ -179,7 +199,6 @@ const permissionTree = computed(() => {
         })
       }
     } else if (parts.length === 3) {
-      // 子节点
       const parentCode = parts.slice(0, 2).join('.')
       const parent = map[parentCode]
       if (parent) {
@@ -190,7 +209,6 @@ const permissionTree = computed(() => {
           description: perm.description || ''
         })
       } else {
-        // 父节点不存在，直接加到根
         tree.push({
           id: code,
           code: code,
@@ -201,8 +219,7 @@ const permissionTree = computed(() => {
     }
   })
   
-  console.log('[角色权限] 权限树结构:', tree)
-  console.log('[角色权限] 父节点集合:', Array.from(parentCodes))
+  console.log('[角色权限] 手动构建的权限树:', tree)
   return tree
 })
 
@@ -211,6 +228,14 @@ const {
   dialogMode,
   openDialog
 } = useDialog()
+
+// 判断当前选中的是否是管理员角色
+const isAdminRole = computed(() => {
+  if (!selectedRole.value) return false
+  const code = (selectedRole.value.code || '').toLowerCase()
+  const name = (selectedRole.value.name || '').toLowerCase()
+  return code === 'admin' || name === '管理员'
+})
 
 // 是否编辑模式
 const isEdit = computed(() => dialogMode.value === 'edit')
@@ -276,33 +301,50 @@ const loadPermissions = async () => {
   }
 }
 
-// 只勾选叶子节点（三段code）或无子节点的一级节点
+// 递归遍历树形结构，只勾选叶子节点（el-tree 的 check-strictly=false 会自动处理父节点半选状态）
 const getDefaultCheckedKeys = (rolePerms, tree) => {
   const checked = []
-  // 兼容字符串数组和对象数组
+  // 兼容字符串数组和对象数组，直接使用后端格式（不转换）
   const codes = rolePerms.map(p => typeof p === 'string' ? p : p.code)
   const allCodes = new Set(codes)
   
-  console.log('[角色权限] getDefaultCheckedKeys 输入:', codes)
+  console.log('[角色权限] getDefaultCheckedKeys 输入 codes:', codes)
   
-  tree.forEach(parent => {
-    if (parent.children && parent.children.length > 0) {
-      // 有子节点，只检查子节点
-      parent.children.forEach(child => {
-        if (allCodes.has(child.code)) {
-          checked.push(child.id)
+  // 递归遍历树，只勾选叶子节点
+  const traverse = (nodes) => {
+    nodes.forEach(node => {
+      if (node.children && node.children.length > 0) {
+        // 有子节点，递归处理
+        traverse(node.children)
+      } else {
+        // 叶子节点，检查是否在角色权限中（直接匹配后端格式）
+        if (allCodes.has(node.code)) {
+          checked.push(node.id)
         }
-      })
-    } else {
-      // 无子节点的父节点直接勾选
-      if (allCodes.has(parent.code)) {
-        checked.push(parent.id)
       }
-    }
-  })
+    })
+  }
   
-  console.log('[角色权限] getDefaultCheckedKeys 输出:', checked)
+  traverse(tree)
+  
+  console.log('[角色权限] getDefaultCheckedKeys 输出 checked:', checked)
   return checked
+}
+
+// 获取所有叶子节点的 id（用于全选）
+const getAllLeafKeys = (tree) => {
+  const keys = []
+  const traverse = (nodes) => {
+    nodes.forEach(node => {
+      if (node.children && node.children.length > 0) {
+        traverse(node.children)
+      } else {
+        keys.push(node.id)
+      }
+    })
+  }
+  traverse(tree)
+  return keys
 }
 
 const selectRole = (role) => {
@@ -310,10 +352,27 @@ const selectRole = (role) => {
   console.log('[角色权限] 选中角色:', role)
   console.log('[角色权限] 当前权限树:', permissionTree.value)
   
-  // 使用后端返回的权限编码（如果没有，则尝试拉取详情）
+  // 判断是否是管理员角色
+  const code = (role.code || '').toLowerCase()
+  const name = (role.name || '').toLowerCase()
+  const isAdmin = code === 'admin' || name === '管理员'
+  
+  // 管理员角色：全选所有权限
+  if (isAdmin) {
+    console.log('[角色权限] 管理员角色，全选所有权限')
+    nextTick(() => {
+      if (treeRef.value) {
+        const allKeys = getAllLeafKeys(permissionTree.value)
+        console.log('[角色权限] 全选keys:', allKeys)
+        treeRef.value.setCheckedKeys(allKeys)
+      }
+    })
+    return
+  }
+  
+  // 其他角色：根据后端返回的权限勾选
   const perms = role.permissions || []
   console.log('[角色权限] 角色权限原始数据:', perms)
-  console.log('[角色权限] 角色权限类型:', typeof perms[0], perms[0])
   
   if (perms.length > 0) {
     selectedPermissions.value = perms
@@ -321,12 +380,10 @@ const selectRole = (role) => {
       if (treeRef.value) {
         console.log('[角色权限] treeRef 存在，准备设置勾选')
         treeRef.value.setCheckedKeys([])
-        // 使用新逻辑：只勾选叶子节点
+        // 根据后端返回的权限勾选对应节点
         const keys = getDefaultCheckedKeys(perms, permissionTree.value)
         console.log('[角色权限] 计算出的勾选keys:', keys)
         treeRef.value.setCheckedKeys(keys)
-        console.log('[角色权限] 已调用 setCheckedKeys')
-        // 验证是否真的设置成功
         console.log('[角色权限] 当前勾选的keys:', treeRef.value.getCheckedKeys())
       } else {
         console.error('[角色权限] treeRef 不存在！')
@@ -356,33 +413,48 @@ const savePermissions = async () => {
     const halfCheckedKeys = treeRef.value.getHalfCheckedKeys()
     const allKeys = [...checkedKeys, ...halfCheckedKeys]
     
+    // 树节点的 id 已经是后端格式（如 dashboard），直接发送
+    console.log('[角色权限] 准备保存权限:', {
+      roleId: selectedRole.value.id,
+      roleName: selectedRole.value.name,
+      permissions: allKeys
+    })
+    
     await updateRolePermissions(selectedRole.value.id, allKeys)
     
-    // 无论是否当前用户角色，都刷新本地权限（因为可能同时在线）
+    // 刷新当前用户的权限信息
     try {
-      const userInfoStr = localStorage.getItem('userInfo')
-      const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
-      
-      // 刷新当前用户的最新权限
-      if (userInfo) {
-        const me = await getCurrentUser()
-        const _user = me?.data ?? me
-        if (_user) {
-          localStorage.setItem('userInfo', JSON.stringify(_user))
-          ElMessage.success('权限保存成功，页面即将刷新')
-          // 延迟刷新，让用户看到成功提示
-          setTimeout(() => {
-            window.location.reload()
-          }, 800)
-          return
-        }
+      const me = await getCurrentUser()
+      const response = me?.data ?? me
+      // 后端返回 {user: {...}, permissions: [...]} 结构，需要合并
+      const _user = response?.user ? { ...response.user, permissions: response.permissions } : response
+      if (_user) {
+        localStorage.setItem('userInfo', JSON.stringify(_user))
+        console.log('[角色权限] 已更新本地用户权限信息:', _user)
+        console.log('[角色权限] 用户角色:', _user.role)
+        console.log('[角色权限] 用户权限:', _user.permissions)
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[角色权限] 刷新用户权限失败', e)
+    }
     
-    ElMessage.success('权限保存成功')
+    ElMessage.success('权限保存成功，页面即将刷新')
+    
+    // 刷新页面以更新菜单
+    setTimeout(() => {
+      window.location.reload()
+    }, 500)
+    
   } catch (error) {
+    console.error('[角色权限] 保存权限失败:', error)
+    const status = error?.response?.status
     const msg = error?.response?.data?.message || error?.response?.data?.detail || '保存失败'
-    ElMessage.error(msg)
+    
+    if (status === 403) {
+      ElMessage.error('您没有权限修改角色权限，请联系超级管理员')
+    } else {
+      ElMessage.error(msg)
+    }
   }
 }
 
@@ -519,5 +591,15 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 管理员角色禁用权限树编辑 */
+.tree-disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.tree-disabled :deep(.el-checkbox) {
+  cursor: not-allowed;
 }
 </style>
