@@ -23,13 +23,6 @@
             <el-option v-for="c in caregivers" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="优先级">
-          <el-select v-model="searchForm.priority" placeholder="全部优先级" clearable style="width: 120px">
-            <el-option label="高" value="high" />
-            <el-option label="中" value="medium" />
-            <el-option label="低" value="low" />
-          </el-select>
-        </el-form-item>
       </SearchForm>
 
       <!-- 批量操作按钮 -->
@@ -52,12 +45,8 @@
         <el-table-column type="selection" width="50" @selection-change="handleSelectionChange" />
         <el-table-column prop="id" label="任务ID" width="80" />
         <el-table-column prop="elderly_name" label="老人" width="120" />
-        <el-table-column prop="task_content" label="任务内容" min-width="200" show-overflow-tooltip />
-        <el-table-column label="任务类型" width="120">
-          <template #default="{ row }">
-            <StatusTag type="careType" :value="row.task_type" size="small" />
-          </template>
-        </el-table-column>
+        <el-table-column prop="title" label="任务标题" width="150" show-overflow-tooltip />
+        <el-table-column prop="description" label="任务内容" min-width="200" show-overflow-tooltip />
         <el-table-column label="优先级" width="100">
           <template #default="{ row }">
             <el-tag 
@@ -73,7 +62,7 @@
             <StatusTag type="taskStatus" :value="row.status" size="small" />
           </template>
         </el-table-column>
-        <el-table-column prop="caregiver_name" label="分配给" width="120" />
+        <el-table-column prop="assigned_to_name" label="分配给" width="120" />
         <el-table-column prop="scheduled_time" label="计划时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
@@ -89,11 +78,106 @@
         </el-table-column>
       </DataTable>
     </PageCard>
+
+    <!-- 新增/编辑任务对话框 -->
+    <el-dialog 
+      v-model="taskDialogVisible" 
+      :title="isEditMode ? '编辑护理任务' : '新增护理任务'"
+      width="600px"
+    >
+      <el-form 
+        ref="taskFormRef" 
+        :model="taskForm" 
+        :rules="taskFormRules" 
+        label-width="100px"
+      >
+        <el-form-item label="选择老人" prop="elderly_id">
+          <el-select 
+            v-model="taskForm.elderly_id" 
+            placeholder="请选择老人" 
+            filterable 
+            style="width: 100%"
+          >
+            <el-option 
+              v-for="e in elderlyList" 
+              :key="e.id" 
+              :label="e.name" 
+              :value="e.id" 
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="任务标题" prop="title">
+          <el-select 
+            v-model="taskForm.title" 
+            placeholder="请选择任务类型" 
+            allow-create
+            filterable
+            style="width: 100%"
+          >
+            <el-option 
+              v-for="opt in TASK_TYPE_OPTIONS" 
+              :key="opt.value" 
+              :label="opt.label" 
+              :value="opt.label" 
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="任务描述" prop="description">
+          <el-input 
+            v-model="taskForm.description" 
+            type="textarea" 
+            :rows="3"
+            placeholder="请输入任务详细描述（可选）"
+          />
+        </el-form-item>
+
+        <el-form-item label="优先级" prop="priority">
+          <el-radio-group v-model="taskForm.priority">
+            <el-radio label="high">高</el-radio>
+            <el-radio label="medium">中</el-radio>
+            <el-radio label="low">低</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="分配护工" prop="assigned_to">
+          <el-select 
+            v-model="taskForm.assigned_to" 
+            placeholder="请选择护工" 
+            style="width: 100%"
+          >
+            <el-option 
+              v-for="c in caregivers" 
+              :key="c.id" 
+              :label="c.name" 
+              :value="c.id" 
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="计划时间" prop="scheduled_time">
+          <el-date-picker
+            v-model="taskForm.scheduled_time"
+            type="datetime"
+            placeholder="选择计划执行时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="taskDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveTask">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getCareTasks, updateTaskStatus, getElderlyList } from '@/api'
@@ -120,8 +204,7 @@ const initSearchForm = () => {
   Object.assign(searchForm, {
     elderly_id: null,
     status: null,
-    assigned_to: null,
-    priority: null
+    assigned_to: null
   })
 }
 
@@ -138,6 +221,7 @@ const loadElderlyList = async () => {
 onMounted(() => {
   initSearchForm()
   loadElderlyList()
+  loadData()  // 加载任务列表数据
 })
 
 // 选择改变
@@ -213,7 +297,12 @@ const batchDelete = async () => {
       type: 'warning'
     })
     
-    // 实际删除操作
+    // 批量删除
+    const { deleteCareTask } = await import('@/api')
+    for (const task of selectedTasks.value) {
+      await deleteCareTask(task.id)
+    }
+    
     ElMessage.success('任务已删除')
     selectedTasks.value = []
     loadData()
@@ -245,7 +334,17 @@ const completeTask = async (task) => {
 }
 
 const editTask = (task) => {
-  ElMessage.info('编辑功能开发中')
+  isEditMode.value = true
+  currentTaskId.value = task.id
+  Object.assign(taskForm, {
+    elderly_id: task.elderly_id,
+    title: task.title || '',
+    description: task.description || '',
+    priority: task.priority || 'medium',
+    assigned_to: task.assigned_to,
+    scheduled_time: task.scheduled_time || ''
+  })
+  taskDialogVisible.value = true
 }
 
 const deleteTask = async (task) => {
@@ -255,17 +354,91 @@ const deleteTask = async (task) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
+    
+    const { deleteCareTask } = await import('@/api')
+    await deleteCareTask(task.id)
+    
     ElMessage.success('任务已删除')
     loadData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error('删除失败：' + (error.message || '未知错误'))
     }
   }
 }
 
 const showAddDialog = () => {
-  ElMessage.info('新增功能开发中')
+  isEditMode.value = false
+  currentTaskId.value = null
+  Object.assign(taskForm, {
+    elderly_id: '',
+    title: '',
+    description: '',
+    priority: 'medium',
+    assigned_to: '',
+    scheduled_time: ''
+  })
+  taskDialogVisible.value = true
+}
+
+// 任务表单
+const taskDialogVisible = ref(false)
+const taskFormRef = ref(null)
+const isEditMode = ref(false)
+const currentTaskId = ref(null)
+const taskForm = reactive({
+  elderly_id: '',
+  title: '',
+  description: '',
+  priority: 'medium',
+  assigned_to: '',
+  scheduled_time: ''
+})
+
+const taskFormRules = {
+  elderly_id: [{ required: true, message: '请选择老人', trigger: 'change' }],
+  title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
+  description: [{ required: false, message: '请输入任务内容', trigger: 'blur' }],
+  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
+  assigned_to: [{ required: true, message: '请选择分配护工', trigger: 'change' }],
+  scheduled_time: [{ required: true, message: '请选择计划时间', trigger: 'change' }]
+}
+
+// 任务类型选项
+const TASK_TYPE_OPTIONS = [
+  { label: '喂饭', value: 'feeding' },
+  { label: '洗澡', value: 'bathing' },
+  { label: '翻身', value: 'turning' },
+  { label: '陪伴', value: 'companionship' },
+  { label: '康复训练', value: 'rehabilitation' },
+  { label: '健康检查', value: 'health_check' },
+  { label: '其他', value: 'other' }
+]
+
+// 保存任务
+const saveTask = async () => {
+  try {
+    await taskFormRef.value.validate()
+    
+    if (isEditMode.value) {
+      // 编辑模式
+      const { updateCareTask } = await import('@/api')
+      await updateCareTask(currentTaskId.value, taskForm)
+      ElMessage.success('任务更新成功')
+    } else {
+      // 新增模式
+      const { createCareTask } = await import('@/api')
+      await createCareTask(taskForm)
+      ElMessage.success('任务创建成功')
+    }
+    
+    taskDialogVisible.value = false
+    loadData()
+  } catch (error) {
+    if (error !== false) {
+      ElMessage.error((isEditMode.value ? '更新' : '创建') + '失败：' + (error.message || '未知错误'))
+    }
+  }
 }
 
 loadElderlyList()

@@ -201,6 +201,9 @@
         style="width: 100%"
       />
     </el-form-item>
+    <el-form-item label="身份证号">
+      <el-input v-model="editForm.id_number" placeholder="请输入身份证号" />
+    </el-form-item>
     <el-form-item label="联系电话">
       <el-input v-model="editForm.phone" placeholder="请输入联系电话" />
     </el-form-item>
@@ -251,6 +254,7 @@ const editForm = ref({
   name: '',
   gender: '',
   birthday: '',
+  id_number: '',
   phone: '',
   bed_id: '',
   care_level: '',

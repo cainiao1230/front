@@ -9,6 +9,11 @@ export const getTodos = (params = {}) => {
   return request.get('/api/todos', { params })
 }
 
+// 获取待办详情
+export const getTodoDetail = (id) => {
+  return request.get(`/api/todos/${id}`)
+}
+
 // 创建待办
 // 请求体: { title: string, due_at?: string }
 export const createTodo = (data) => {

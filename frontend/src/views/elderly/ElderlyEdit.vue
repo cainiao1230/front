@@ -188,13 +188,21 @@ const loadElderlyDetail = async () => {
     const res = await getElderlyDetail(id)
     const data = res.data || res
     
+    console.log('[DEBUG] 从后端获取的数据:', data)
+    console.log('[DEBUG] id_number字段:', data.id_number)
+    
     // 填充表单
     Object.keys(form).forEach(key => {
-      if (data[key] !== undefined) {
+      if (data[key] !== undefined && data[key] !== null) {
         form[key] = data[key]
+      } else if (data[key] === null) {
+        // null 值转换为空字符串，避免输入框显示 "null"
+        form[key] = ''
       }
     })
     form.id = data.id
+    
+    console.log('[DEBUG] 填充后的表单数据:', form)
   } catch (error) {
     console.error('加载老人详情失败:', error)
     ElMessage.error('加载老人详情失败')
@@ -217,6 +225,10 @@ const handleSubmit = async () => {
     
     const submitData = { ...form }
     delete submitData.id
+    
+    // 调试日志：查看提交的数据
+    console.log('提交数据:', submitData)
+    console.log('id_number字段:', submitData.id_number)
     
     await updateElderly(form.id, submitData)
     ElMessage.success('保存成功')

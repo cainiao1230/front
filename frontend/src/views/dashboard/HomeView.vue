@@ -489,16 +489,32 @@ const loadAlerts = async () => {
 const loadTasks = async () => {
   tasksLoading.value = true
   try {
+    // 直接调用today接口获取今日所有任务
     const res = await getTodayTasks()
-    if (res.code === 0 && res.data) {
-      // 将后端数据转换为前端格式
-      tasks.value = (res.data.items || []).map(task => ({
+    
+    console.log('今日任务API响应:', res)
+    
+    // 兼容多种响应格式
+    let todayTasks = []
+    if (res.code === 0 || res.code === 200) {
+      todayTasks = res.data?.items || res.data || []
+    } else if (Array.isArray(res.data)) {
+      todayTasks = res.data
+    } else if (Array.isArray(res)) {
+      todayTasks = res
+    }
+    
+    console.log('今日任务数量:', todayTasks.length)
+    
+    if (todayTasks.length > 0) {
+      // 将后端数据转换为前端格式（使用后端实际字段）
+      tasks.value = todayTasks.map(task => ({
         id: task.id,
-        elderlyName: task.elderlyName,
-        roomNumber: task.roomNumber || '--',
+        elderlyName: task.elderly_name,
+        roomNumber: task.room_number || '--',
         taskType: task.title,
-        scheduledTime: task.scheduledTime ? new Date(task.scheduledTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '--',
-        assignee: task.assignedToName,
+        scheduledTime: task.scheduled_time ? new Date(task.scheduled_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '--',
+        assignee: task.assigned_to_name,
         status: task.status
       }))
     } else {
@@ -576,20 +592,40 @@ const loadFloors = async () => {
   try {
     // 使用后端新增的楼层统计接口
     const res = await getBedStatsByFloor()
-    if (res.code === 200 && res.data) {
+    console.log('[首页] 楼层统计接口响应:', res)
+    
+    // 兼容两种返回格式：
+    // 1. 标准格式: {code: 0, data: [...]}
+    // 2. 直接数组: [...]
+    let floorData = null
+    
+    if (Array.isArray(res)) {
+      // 直接返回数组
+      floorData = res
+    } else if (res && (res.code === 0 || res.code === 200) && res.data) {
+      // 标准格式
+      floorData = res.data
+    } else if (res && res.data && Array.isArray(res.data)) {
+      // 有 data 字段但没有 code
+      floorData = res.data
+    }
+    
+    if (floorData && Array.isArray(floorData) && floorData.length > 0) {
       // 后端返回格式: [{ floor, total, occupied, free, maintenance, locked, usage_rate }]
-      floors.value = res.data.map(item => ({
+      floors.value = floorData.map(item => ({
         id: item.floor,
         floorName: item.floor,
         totalBeds: item.total || 0,
         occupiedBeds: item.occupied || 0,
         availableBeds: item.free || 0,
-        occupancyRate: item.usage_rate || 0
+        occupancyRate: Math.round(item.usage_rate) || 0
       }))
+      console.log('[首页] 楼层数据加载成功:', floors.value)
     } else {
+      console.warn('[首页] 楼层统计接口返回格式异常，尝试使用仪表盘统计')
       // 如果新接口不可用，回退到dashboard统计
       const dashRes = await getDashboardStats()
-      if (dashRes.code === 0 && dashRes.data && dashRes.data.beds) {
+      if (dashRes && (dashRes.code === 0 || dashRes.code === 200) && dashRes.data && dashRes.data.beds) {
         const { beds } = dashRes.data
         floors.value = [{
           id: 'total',
@@ -597,18 +633,20 @@ const loadFloors = async () => {
           totalBeds: beds.total || 0,
           occupiedBeds: beds.occupied || 0,
           availableBeds: beds.free || 0,
-          occupancyRate: beds.occupancyRate || 0
+          occupancyRate: Math.round(beds.occupancyRate) || 0
         }]
+        console.log('[首页] 使用仪表盘统计数据:', floors.value)
       } else {
+        console.error('[首页] 仪表盘统计接口也失败')
         floors.value = []
       }
     }
   } catch (error) {
-    console.error('加载楼层数据失败:', error)
+    console.error('[首页] 加载楼层数据失败:', error)
     // 发生错误时回退到dashboard统计
     try {
       const dashRes = await getDashboardStats()
-      if (dashRes.code === 0 && dashRes.data && dashRes.data.beds) {
+      if (dashRes && (dashRes.code === 0 || dashRes.code === 200) && dashRes.data && dashRes.data.beds) {
         const { beds } = dashRes.data
         floors.value = [{
           id: 'total',
@@ -616,11 +654,17 @@ const loadFloors = async () => {
           totalBeds: beds.total || 0,
           occupiedBeds: beds.occupied || 0,
           availableBeds: beds.free || 0,
-          occupancyRate: beds.occupancyRate || 0
+          occupancyRate: Math.round(beds.occupancyRate) || 0
         }]
+        console.log('[首页] 错误回退使用仪表盘数据:', floors.value)
+      } else {
+        floors.value = []
+        ElMessage.warning('床位数据加载失败，请稍后刷新')
       }
     } catch (e) {
+      console.error('[首页] 回退方案也失败:', e)
       floors.value = []
+      ElMessage.error('无法加载床位数据')
     }
   } finally {
     floorsLoading.value = false

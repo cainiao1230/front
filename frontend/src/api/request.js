@@ -22,6 +22,13 @@ request.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`
       }
     }
+    
+    // 调试日志：查看请求数据
+    if (config.method === 'put' && url.includes('/api/elderly/')) {
+      console.log('[DEBUG] PUT请求数据:', config.data)
+      console.log('[DEBUG] 请求URL:', config.url)
+    }
+    
     return config
   },
   error => {

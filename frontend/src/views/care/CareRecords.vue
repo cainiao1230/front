@@ -233,7 +233,7 @@ import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getCareRecords, createCareRecord, getElderlyList } from '@/api'
+import { getCareRecords, createCareRecord, deleteCareRecord, getElderlyList } from '@/api'
 
 const route = useRoute()
 const loading = ref(false)
@@ -469,10 +469,13 @@ const deleteRecord = async (row) => {
       type: 'warning'
     })
     
+    // 调用 DELETE 接口删除记录
+    await deleteCareRecord(row.id)
     ElMessage.success('护理记录已删除')
     loadRecords()
   } catch (error) {
     if (error !== 'cancel') {
+      console.error('删除护理记录失败:', error)
       ElMessage.error('删除护理记录失败')
     }
   }

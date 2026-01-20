@@ -52,6 +52,11 @@ export const getBedHistory = (params = {}) => {
   return request.get('/api/beds/history', { params })
 }
 
+// 获取床位历史详情
+export const getBedHistoryDetail = (id) => {
+  return request.get(`/api/beds/history/${id}`)
+}
+
 // 按楼层统计床位（后端新增接口）
 export const getBedStatsByFloor = () => {
   return request.get('/api/beds/floor-stats')

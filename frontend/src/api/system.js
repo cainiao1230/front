@@ -111,6 +111,11 @@ export const getSystemLogs = (params = {}) => {
   return request.get('/api/logs', { params })
 }
 
+// 获取日志详情
+export const getSystemLogDetail = (id) => {
+  return request.get(`/api/logs/${id}`)
+}
+
 // 获取指定用户的日志
 export const getUserLogs = (userId) => {
   return request.get(`/api/system/logs/user/${userId}`)
