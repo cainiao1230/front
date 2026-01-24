@@ -123,6 +123,59 @@
         </el-table-column>
       </DataTable>
     </PageCard>
+
+    <!-- 新增/编辑床位对话框 -->
+    <el-dialog 
+      v-model="bedDialogVisible" 
+      :title="isEditMode ? '编辑床位' : '新增床位'"
+      width="500px"
+    >
+      <el-form 
+        ref="bedFormRef" 
+        :model="bedForm" 
+        :rules="bedFormRules" 
+        label-width="100px"
+      >
+        <el-form-item label="床位编号" prop="bed_no">
+          <el-input v-model="bedForm.bed_no" placeholder="如：101-1" />
+        </el-form-item>
+
+        <el-form-item label="房间号" prop="room">
+          <el-input v-model="bedForm.room" placeholder="如：101" />
+        </el-form-item>
+
+        <el-form-item label="楼栋" prop="building">
+          <el-input v-model="bedForm.building" placeholder="如：1号楼" />
+        </el-form-item>
+
+        <el-form-item label="楼层" prop="floor">
+          <el-select v-model="bedForm.floor" placeholder="请选择楼层" style="width: 100%">
+            <el-option v-for="floor in FLOORS" :key="floor" :label="`${floor}楼`" :value="floor" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="床位类型">
+          <el-select v-model="bedForm.bed_type" placeholder="请选择类型" style="width: 100%">
+            <el-option v-for="opt in BED_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="价格(元/月)">
+          <el-input-number v-model="bedForm.price" :min="0" :step="100" style="width: 100%" />
+        </el-form-item>
+
+        <el-form-item label="床位状态" v-if="isEditMode">
+          <el-select v-model="bedForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option v-for="opt in BED_STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="bedDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveBed">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -198,15 +251,47 @@ const releaseBed = async (bed) => {
   }
 }
 
+// 床位表单对话框
+const bedDialogVisible = ref(false)
+const bedFormRef = ref(null)
+const isEditMode = ref(false)
+const currentBedId = ref(null)
+const bedForm = reactive({
+  bed_no: '',
+  room: '',
+  building: '1号楼',
+  floor: '1',
+  bed_type: 'single',
+  price: 2000,
+  status: 'free'
+})
+
+const bedFormRules = {
+  bed_no: [{ required: true, message: '请输入床位编号', trigger: 'blur' }],
+  room: [{ required: true, message: '请输入房间号', trigger: 'blur' }],
+  floor: [{ required: true, message: '请选择楼层', trigger: 'change' }]
+}
+
 // 编辑床位
 const editBed = (bed) => {
-  ElMessage.info('编辑功能开发中')
+  isEditMode.value = true
+  currentBedId.value = bed.id
+  Object.assign(bedForm, {
+    bed_no: bed.bed_no || '',
+    room: bed.room || '',
+    building: bed.building || '1号楼',
+    floor: bed.floor || '1',
+    bed_type: bed.bed_type || 'single',
+    price: bed.price || 2000,
+    status: bed.status || 'free'
+  })
+  bedDialogVisible.value = true
 }
 
 // 删除床位
 const deleteBed = async (bed) => {
   try {
-    await ElMessageBox.confirm(`确认删除床位 ${bed.bed_number} 吗？`, '提示', {
+    await ElMessageBox.confirm(`确认删除床位 ${bed.bed_no} 吗？`, '提示', {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
       type: 'warning'
@@ -224,7 +309,44 @@ const deleteBed = async (bed) => {
 
 // 新增床位
 const showAddDialog = () => {
-  ElMessage.info('新增功能开发中')
+  isEditMode.value = false
+  currentBedId.value = null
+  Object.assign(bedForm, {
+    bed_no: '',
+    room: '',
+    building: '1号楼',
+    floor: '1',
+    bed_type: 'single',
+    price: 2000,
+    status: 'free'
+  })
+  bedDialogVisible.value = true
+}
+
+// 保存床位
+const saveBed = async () => {
+  try {
+    await bedFormRef.value?.validate()
+    
+    const { createBed, updateBed } = await import('@/api')
+    
+    if (isEditMode.value) {
+      await updateBed(currentBedId.value, bedForm)
+      ElMessage.success('床位已更新')
+    } else {
+      await createBed(bedForm)
+      ElMessage.success('床位已添加')
+    }
+    
+    bedDialogVisible.value = false
+    loadBedList()
+  } catch (error) {
+    if (error.errors) {
+      // 表单验证失败
+      return
+    }
+    ElMessage.error(isEditMode.value ? '更新失败' : '添加失败')
+  }
 }
 
 onMounted(() => {

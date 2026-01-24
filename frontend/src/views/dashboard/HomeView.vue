@@ -492,19 +492,21 @@ const loadTasks = async () => {
     // 直接调用today接口获取今日所有任务
     const res = await getTodayTasks()
     
-    console.log('今日任务API响应:', res)
+    console.log('[首页] 今日任务API响应:', res)
     
     // 兼容多种响应格式
     let todayTasks = []
-    if (res.code === 0 || res.code === 200) {
-      todayTasks = res.data?.items || res.data || []
-    } else if (Array.isArray(res.data)) {
+    if (res?.data?.items) {
+      todayTasks = res.data.items
+    } else if (res?.items) {
+      todayTasks = res.items
+    } else if (Array.isArray(res?.data)) {
       todayTasks = res.data
     } else if (Array.isArray(res)) {
       todayTasks = res
     }
     
-    console.log('今日任务数量:', todayTasks.length)
+    console.log('[首页] 今日任务数量:', todayTasks.length)
     
     if (todayTasks.length > 0) {
       // 将后端数据转换为前端格式（使用后端实际字段）

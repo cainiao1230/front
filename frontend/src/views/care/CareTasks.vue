@@ -180,12 +180,22 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getCareTasks, updateTaskStatus, getElderlyList } from '@/api'
+import { getCareTasks, updateTaskStatus, getElderlyList, getSystemUsers } from '@/api'
 import { useTable } from '@/composables/useTable'
 import { TASK_STATUS_OPTIONS } from '@/utils/constants'
 
+// 任务类型选项
+const TASK_TYPE_OPTIONS = [
+  { label: '晨间护理', value: 'morning_care' },
+  { label: '协助就餐', value: 'meal_assist' },
+  { label: '用药提醒', value: 'medication' },
+  { label: '清洁卫生', value: 'cleaning' },
+  { label: '陪同就医', value: 'medical' },
+  { label: '康复训练', value: 'rehabilitation' }
+]
+
 const elderlyList = ref([])
-const caregivers = ref([{ id: 10, name: '护工小王' }, { id: 11, name: '护工小李' }])
+const caregivers = ref([])
 const selectedTasks = ref([])
 
 const {
@@ -212,15 +222,83 @@ const initSearchForm = () => {
 const loadElderlyList = async () => {
   try {
     const response = await getElderlyList({ status: 'in', page: 1, page_size: 1000 })
-    elderlyList.value = response.data.items || []
+    // 兼容多种响应格式
+    let items = []
+    if (response?.data?.items) {
+      items = response.data.items
+    } else if (response?.items) {
+      items = response.items
+    } else if (Array.isArray(response?.data)) {
+      items = response.data
+    } else if (Array.isArray(response)) {
+      items = response
+    }
+    elderlyList.value = items
+    console.log('[护理任务] 老人列表加载成功:', items.length, '人')
   } catch (error) {
-    console.error('加载老人列表失败')
+    console.error('加载老人列表失败:', error)
+    ElMessage.error('加载老人列表失败')
+  }
+}
+
+// 加载护工和护士列表
+const loadCaregivers = async () => {
+  try {
+    // 同时获取护工和护士
+    const [caregiverRes, nurseRes] = await Promise.all([
+      getSystemUsers({ role: 'caregiver', page: 1, page_size: 1000 }).catch(() => null),
+      getSystemUsers({ role: 'nurse', page: 1, page_size: 1000 }).catch(() => null)
+    ])
+    
+    // 解析响应数据的辅助函数
+    const parseItems = (response) => {
+      if (!response) return []
+      if (response?.data?.items) return response.data.items
+      if (response?.items) return response.items
+      if (Array.isArray(response?.data)) return response.data
+      if (Array.isArray(response)) return response
+      return []
+    }
+    
+    const caregiverItems = parseItems(caregiverRes)
+    const nurseItems = parseItems(nurseRes)
+    
+    // 合并护工和护士列表
+    const allItems = [...caregiverItems, ...nurseItems]
+    
+    // 如果没有数据，使用模拟数据
+    if (allItems.length === 0) {
+      caregivers.value = [
+        { id: 10, name: '护工小王', role: 'caregiver' },
+        { id: 11, name: '护工小李', role: 'caregiver' },
+        { id: 12, name: '护士张三', role: 'nurse' },
+        { id: 13, name: '护士王五', role: 'nurse' }
+      ]
+      console.log('[护理任务] 使用模拟护理人员数据')
+    } else {
+      caregivers.value = allItems.map(u => ({ 
+        id: u.id, 
+        name: u.username || u.name,
+        role: u.role 
+      }))
+      console.log('[护理任务] 护理人员加载成功: 护工', caregiverItems.length, '人, 护士', nurseItems.length, '人')
+    }
+  } catch (error) {
+    console.error('加载护理人员列表失败:', error)
+    // 使用模拟数据
+    caregivers.value = [
+      { id: 10, name: '护工小王', role: 'caregiver' },
+      { id: 11, name: '护工小李', role: 'caregiver' },
+      { id: 12, name: '护士张三', role: 'nurse' },
+      { id: 13, name: '护士王五', role: 'nurse' }
+    ]
   }
 }
 
 onMounted(() => {
   initSearchForm()
   loadElderlyList()
+  loadCaregivers()
   loadData()  // 加载任务列表数据
 })
 
@@ -404,17 +482,6 @@ const taskFormRules = {
   scheduled_time: [{ required: true, message: '请选择计划时间', trigger: 'change' }]
 }
 
-// 任务类型选项
-const TASK_TYPE_OPTIONS = [
-  { label: '喂饭', value: 'feeding' },
-  { label: '洗澡', value: 'bathing' },
-  { label: '翻身', value: 'turning' },
-  { label: '陪伴', value: 'companionship' },
-  { label: '康复训练', value: 'rehabilitation' },
-  { label: '健康检查', value: 'health_check' },
-  { label: '其他', value: 'other' }
-]
-
 // 保存任务
 const saveTask = async () => {
   try {
@@ -440,8 +507,6 @@ const saveTask = async () => {
     }
   }
 }
-
-loadElderlyList()
 </script>
 
 <style scoped>

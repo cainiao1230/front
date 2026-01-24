@@ -95,8 +95,8 @@ export const getSystemRoleDetail = (id) => {
 }
 
 // 保存角色权限
-export const updateRolePermissions = (roleId, permissionIds) => {
-  return request.put(`/api/roles/${roleId}/permissions`, { permissionIds })
+export const updateRolePermissions = (roleId, permissions) => {
+  return request.put(`/api/roles/${roleId}/permissions`, { permissions })
 }
 
 // 获取所有权限列表（树形结构）

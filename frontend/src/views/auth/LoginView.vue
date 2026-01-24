@@ -46,8 +46,8 @@ import { ElMessage } from 'element-plus'
 
 // 响应式数据
 const form = ref({
-  username: 'admin',
-  password: 'admin123'
+  username: '',
+  password: ''
 })
 const loading = ref(false)
 const error = ref('')

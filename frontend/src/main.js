@@ -9,7 +9,7 @@ import GlobalComponents from './components'
 
 
 // 开发环境：自动登录为admin用户用于测试
-if (!localStorage.getItem('userInfo')) {
+if (import.meta.env.DEV && !localStorage.getItem('userInfo')) {
   localStorage.setItem('userInfo', JSON.stringify({
     id: 1,
     username: 'admin',

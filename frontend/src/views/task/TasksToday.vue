@@ -139,8 +139,21 @@ const loadTasks = async () => {
   loading.value = true
   try {
     const response = await getTodayTasks()
-    tasks.value = response.data || []
+    // 兼容多种响应格式
+    if (response?.data?.items) {
+      tasks.value = response.data.items
+    } else if (response?.items) {
+      tasks.value = response.items
+    } else if (Array.isArray(response?.data)) {
+      tasks.value = response.data
+    } else if (Array.isArray(response)) {
+      tasks.value = response
+    } else {
+      tasks.value = []
+    }
+    console.log('[今日任务] 加载完成，共', tasks.value.length, '条任务')
   } catch (error) {
+    console.error('加载任务失败:', error)
     ElMessage.error('加载任务失败')
   } finally {
     loading.value = false

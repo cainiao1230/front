@@ -15,17 +15,24 @@
         <!-- 步骤1：选择老人 -->
         <div v-show="currentStep === 0" class="step-panel">
           <h3>请选择需要分配床位的老人</h3>
-          <el-input
-            v-model="elderlyKeyword"
-            placeholder="搜索老人姓名"
-            clearable
-            style="width: 300px; margin-bottom: 20px"
-            @input="filterElderly"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
+          
+          <div style="display: flex; gap: 16px; margin-bottom: 20px; align-items: center;">
+            <el-input
+              v-model="elderlyKeyword"
+              placeholder="搜索老人姓名"
+              clearable
+              style="width: 300px"
+              @input="filterElderly"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+            
+            <el-checkbox v-model="showAllElderly" @change="filterElderly">
+              显示所有老人（包括已分配床位）
+            </el-checkbox>
+          </div>
 
           <el-table
             :data="filteredElderlyList"
@@ -205,8 +212,10 @@ const currentStep = ref(0)
 const elderlyLoading = ref(false)
 const elderlyKeyword = ref('')
 const elderlyList = ref([])
+const allElderlyList = ref([])  // 保存所有老人（用于筛选切换）
 const filteredElderlyList = ref([])
 const selectedElderly = ref(null)
+const showAllElderly = ref(false)  // 是否显示所有老人
 
 const selectedFloor = ref('1')
 const floors = ref(['1', '2', '3', '4'])  // 默认楼层，会从数据动态更新
@@ -233,10 +242,61 @@ const loadElderlyList = async () => {
   elderlyLoading.value = true
   try {
     const response = await getElderlyList({ status: 'in', page: 1, page_size: 100 })
-    const data = response?.data ?? response ?? {}
-    elderlyList.value = (data.items || []).filter(e => !e.bed_id)
-    filteredElderlyList.value = elderlyList.value
+    
+    // 兼容多种响应格式
+    let items = []
+    if (response?.data?.items) {
+      items = response.data.items
+    } else if (response?.items) {
+      items = response.items
+    } else if (Array.isArray(response?.data)) {
+      items = response.data
+    } else if (Array.isArray(response)) {
+      items = response
+    }
+    
+    // 保存所有老人列表
+    allElderlyList.value = items
+    
+    // 从床位列表获取已分配床位的老人ID（转为字符串以确保类型匹配）
+    const allocatedElderlyIds = new Set(
+      bedList.value
+        .filter(bed => bed.elderly_id != null)
+        .map(bed => String(bed.elderly_id))
+    )
+    
+    console.log('[床位分配] 床位总数:', bedList.value.length)
+    console.log('[床位分配] 已分配床位的老人ID:', [...allocatedElderlyIds])
+    console.log('[床位分配] 老人总数:', items.length)
+    
+    // 过滤未分配床位的老人：
+    // 老人ID不在已分配的床位列表中
+    elderlyList.value = items.filter(e => {
+      const elderlyIdStr = String(e.id)
+      const isAllocatedInBedTable = allocatedElderlyIds.has(elderlyIdStr)
+      
+      // 也检查老人表自己的 bed_id 字段
+      const hasBedIdField = e.bed_id != null && e.bed_id !== 0
+      
+      const isUnallocated = !hasBedIdField && !isAllocatedInBedTable
+      
+      if (!isUnallocated) {
+        console.log(`[床位分配] 老人 ${e.name}(ID:${e.id}) 已分配床位`)
+      }
+      
+      return isUnallocated
+    })
+    
+    filterElderly()
+    
+    console.log('[床位分配] 未分配床位的老人:', elderlyList.value.length)
+    
+    // 如果没有未分配床位的老人，显示提示
+    if (elderlyList.value.length === 0 && items.length > 0) {
+      ElMessage.info('所有老人都已分配床位，可勾选"显示所有老人"查看')
+    }
   } catch (error) {
+    console.error('加载老人列表失败:', error)
     ElMessage.error('加载老人列表失败')
   } finally {
     elderlyLoading.value = false
@@ -245,10 +305,13 @@ const loadElderlyList = async () => {
 
 // 过滤老人
 const filterElderly = () => {
+  // 根据 showAllElderly 决定数据源
+  const sourceList = showAllElderly.value ? allElderlyList.value : elderlyList.value
+  
   if (!elderlyKeyword.value) {
-    filteredElderlyList.value = elderlyList.value
+    filteredElderlyList.value = sourceList
   } else {
-    filteredElderlyList.value = elderlyList.value.filter(e => 
+    filteredElderlyList.value = sourceList.filter(e => 
       e.name.includes(elderlyKeyword.value)
     )
   }
@@ -401,9 +464,11 @@ const handleCancel = () => {
   router.back()
 }
 
-onMounted(() => {
-  loadElderlyList()
-  loadBedList()
+onMounted(async () => {
+  // 先加载床位列表，获取已分配床位的老人ID
+  await loadBedList()
+  // 再加载老人列表，过滤掉已分配床位的老人
+  await loadElderlyList()
 })
 </script>
 
