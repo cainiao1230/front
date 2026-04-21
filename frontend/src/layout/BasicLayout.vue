@@ -213,6 +213,7 @@
       <!-- 底部操作区域 -->
       <div class="sidebar-footer" v-if="!isCollapsed">
         <el-button 
+          v-if="hasPerm('page.elderly.list')"
           type="primary" 
           plain 
           class="quick-action-btn"

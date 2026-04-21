@@ -48,7 +48,7 @@ const routes = [
       { 
         path: 'elderlies/add', 
         component: () => import('@/views/elderly/ElderlyAdd.vue'),
-        meta: { requiresAuth: true, title: '新增老人' }
+        meta: { requiresAuth: true, title: '新增老人', permissionCode: 'page.elderly.list' }
       },
       // 老人详情和编辑页
       { 
